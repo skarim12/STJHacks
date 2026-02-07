@@ -1,3 +1,5 @@
+import { getVariantByName, type LayoutVariant } from "./layoutVariants";
+
 export type Slide = {
   title?: string;
   slideType?: string;
@@ -8,6 +10,8 @@ export type Slide = {
   imageDataUri?: string;
   imageCredit?: string;
   imageSourcePage?: string;
+  // Always-on layout plan (set by backend). Renderer uses this to place boxes.
+  layoutPlan?: { variant: string };
 };
 
 export type Outline = {
@@ -246,6 +250,20 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       min-height: 0;
     }
 
+    /* Grid-based planned layouts (always-on). */
+    .layout-grid{
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      column-gap: var(--gutter);
+      row-gap: var(--row-gap);
+      align-items: stretch;
+    }
+
+    .box{ min-width: 0; min-height: 0; }
+
     .header{ display:flex; flex-direction:column; gap:14px; }
 
     .kicker{
@@ -400,6 +418,34 @@ function renderHeader(opts: { kicker?: string; title: string; subtitle?: string 
   <div class="divider"></div>`;
 }
 
+function gridStyle(rect: { colStart: number; colSpan: number; rowStart: number; rowSpan: number }): string {
+  const cs = Math.max(1, Math.min(12, rect.colStart));
+  const cspan = Math.max(1, Math.min(12, rect.colSpan));
+  const rs = Math.max(1, Math.min(8, rect.rowStart));
+  const rspan = Math.max(1, Math.min(8, rect.rowSpan));
+  return `grid-column:${cs} / span ${cspan}; grid-row:${rs} / span ${rspan};`;
+}
+
+function normalizePlannedSlideType(t: unknown): "title" | "content" | "comparison" | "quote" | "imagePlaceholder" {
+  const s = String(t ?? "").toLowerCase().trim();
+  if (s === "title") return "title";
+  if (s === "comparison") return "comparison";
+  if (s === "quote") return "quote";
+  if (s === "image" || s === "imageplaceholder" || s === "image-placeholder") return "imagePlaceholder";
+  return "content";
+}
+
+function plannedVariantForSlide(s: Slide): LayoutVariant | null {
+  const name = String(s?.layoutPlan?.variant || "").trim();
+  if (!name) return null;
+  const v = getVariantByName(name);
+  if (!v) return null;
+
+  const t = normalizePlannedSlideType(s?.slideType);
+  if (!(v.slideTypes as any).includes(t)) return null;
+  return v;
+}
+
 function renderBullets(bullets: string[], max: number): { html: string; overflowNote: string } {
   const shown = bullets.slice(0, max);
   const overflow = Math.max(0, bullets.length - shown.length);
@@ -433,8 +479,90 @@ export function outlineToSimpleSlides(outline: Outline): string {
 export function outlineToStyledSlides(outline: Outline): string {
   const slides = Array.isArray(outline?.slides) ? outline.slides : [];
 
+  const renderPlanned = (s: Slide, i: number): string | null => {
+    const variant = plannedVariantForSlide(s);
+    if (!variant) return null;
+
+    const type = normalizePlannedSlideType(s?.slideType);
+    const deckTitle = outline?.title;
+
+    const title = clampText(stripUnsafe(type === "title" ? outline?.title || s?.title || "" : s?.title || ""), 90);
+    const kicker = clampText(stripUnsafe(type === "title" ? "Presentation" : pickKicker(s, outline)), 36);
+    const subtitle = type === "title" ? clampText(stripUnsafe(outline?.overallTheme || ""), 140) : "";
+
+    const bullets = normalizeBullets(s?.content, 12, 120);
+    const density = computeDensity(bullets);
+    const maxBullets = density === "compact" ? 8 : 6;
+    const b = renderBullets(bullets, maxBullets);
+
+    const { leftTitle, rightTitle, leftBullets, rightBullets } = type === "comparison" ? parseComparison(s) : ({} as any);
+    const left = type === "comparison" ? renderBullets(leftBullets, 5) : null;
+    const right = type === "comparison" ? renderBullets(rightBullets, 5) : null;
+
+    const quoteBullets = type === "quote" ? normalizeBullets(s?.content, 3, 220) : [];
+    const quoteText = type === "quote" ? clampText(stripUnsafe(quoteBullets[0] || ""), 220) : "";
+    const attributionRaw = type === "quote" ? quoteBullets[1] || "" : "";
+    const attribution = attributionRaw ? clampText(stripUnsafe(attributionRaw.replace(/^[\-—]\s*/, "")), 80) : "";
+
+    const imageHtml = s?.imageDataUri
+      ? `<div class="card accent"><div class="image-frame"><img alt="" src="${escapeHtml(s.imageDataUri)}" /></div>${
+          s?.imageCredit ? `<div class="image-credit">${escapeHtml(s.imageCredit)}</div>` : ""
+        }</div>`
+      : `<div class="placeholder">${escapeHtml(clampText(stripUnsafe("Visual placeholder"), 60))}<br/>${escapeHtml(clampText(stripUnsafe(title), 60))}</div>`;
+
+    const headerHtml = renderHeader({ kicker, title, subtitle: subtitle || undefined });
+    const bulletsCard = `<div class="card">${b.html}${b.overflowNote}</div>`;
+    const quoteCard = `<div class="card"><div class="quote">${escapeHtml(quoteText || "—")}</div>${
+      attribution ? `<div class="quote-by">${escapeHtml(attribution)}</div>` : ""
+    }</div>`;
+
+    const comparisonLeftCard = `<div class="card"><h3 class="card-title">${escapeHtml(clampText(stripUnsafe(leftTitle || "Option A"), 26))}</h3>${
+      left ? `${left.html}${left.overflowNote}` : ""
+    }</div>`;
+    const comparisonRightCard = `<div class="card"><h3 class="card-title">${escapeHtml(clampText(stripUnsafe(rightTitle || "Option B"), 26))}</h3>${
+      right ? `${right.html}${right.overflowNote}` : ""
+    }</div>`;
+
+    const boxesHtml = variant.boxes
+      .map((box) => {
+        const style = gridStyle(box.rect);
+        let inner = "";
+        switch (box.kind) {
+          case "header":
+            inner = headerHtml;
+            break;
+          case "bulletsCard":
+            inner = bulletsCard;
+            break;
+          case "imageCard":
+            inner = imageHtml;
+            break;
+          case "quoteCard":
+            inner = quoteCard;
+            break;
+          case "comparisonLeft":
+            inner = comparisonLeftCard;
+            break;
+          case "comparisonRight":
+            inner = comparisonRightCard;
+            break;
+          default:
+            inner = bulletsCard;
+        }
+        return `<div class="box" style="${style}">${inner}</div>`;
+      })
+      .join("");
+
+    const inner = `<div class="layout-grid">${boxesHtml}</div>`;
+    return renderSlideSection(inner, i, density, deckTitle);
+  };
+
   return slides
     .map((s, i) => {
+      const planned = renderPlanned(s as any, i);
+      if (planned) return planned;
+
+      // Fallback: old deterministic renderer if no layoutPlan was attached.
       const type = normalizeSlideType(s?.slideType);
 
       if (type === "title") {
@@ -447,84 +575,7 @@ export function outlineToStyledSlides(outline: Outline): string {
         return renderSlideSection(`${header}${body}`, i, density, outline?.title);
       }
 
-      if (type === "comparison") {
-        const title = clampText(stripUnsafe(s?.title || ""), 90);
-        const kicker = pickKicker(s, outline);
-        const { leftTitle, rightTitle, leftBullets, rightBullets } = parseComparison(s);
-        const density = computeDensity([...leftBullets, ...rightBullets]);
-
-        const left = renderBullets(leftBullets, 5);
-        const right = renderBullets(rightBullets, 5);
-
-        const header = renderHeader({ kicker, title });
-        const body = `
-  <div class="body">
-    <div class="grid-2">
-      <div class="card">
-        <h3 class="card-title">${escapeHtml(clampText(stripUnsafe(leftTitle), 26))}</h3>
-        ${left.html}
-        ${left.overflowNote}
-      </div>
-      <div class="card">
-        <h3 class="card-title">${escapeHtml(clampText(stripUnsafe(rightTitle), 26))}</h3>
-        ${right.html}
-        ${right.overflowNote}
-      </div>
-    </div>
-  </div>`;
-
-        return renderSlideSection(`${header}${body}`, i, density, outline?.title);
-      }
-
-      if (type === "quote") {
-        const title = clampText(stripUnsafe(s?.title || "Quote"), 90);
-        const kicker = pickKicker(s, outline);
-        const bullets = normalizeBullets(s?.content, 3, 220);
-        const quoteText = clampText(stripUnsafe(bullets[0] || ""), 220);
-        const attributionRaw = bullets[1] || "";
-        const attribution = attributionRaw ? clampText(stripUnsafe(attributionRaw.replace(/^[\-—]\s*/, "")), 80) : "";
-
-        const density: "normal" | "compact" = quoteText.length > 150 ? "compact" : "normal";
-        const header = renderHeader({ kicker, title });
-        const body = `
-  <div class="body">
-    <div class="card">
-      <div class="quote">${escapeHtml(quoteText || "—")}</div>
-      ${attribution ? `<div class="quote-by">${escapeHtml(attribution)}</div>` : ""}
-    </div>
-  </div>`;
-        return renderSlideSection(`${header}${body}`, i, density, outline?.title);
-      }
-
-      if (type === "imagePlaceholder") {
-        const title = clampText(stripUnsafe(s?.title || ""), 90);
-        const kicker = pickKicker(s, outline);
-        const bullets = normalizeBullets(s?.content, 6, 120);
-        const density = computeDensity(bullets);
-        const b = renderBullets(bullets, density === "compact" ? 8 : 6);
-
-        const header = renderHeader({ kicker, title });
-        const imageBlock = s?.imageDataUri
-          ? `<div class="card accent"><div class="image-frame"><img alt="" src="${escapeHtml(s.imageDataUri)}" /></div>${
-              s?.imageCredit ? `<div class="image-credit">${escapeHtml(s.imageCredit)}</div>` : ""
-            }</div>`
-          : `<div class="placeholder">${escapeHtml(clampText(stripUnsafe("Visual placeholder"), 60))}<br/>${escapeHtml(clampText(stripUnsafe(title), 60))}</div>`;
-
-        const body = `
-  <div class="body">
-    <div class="grid-2">
-      ${imageBlock}
-      <div class="card">
-        <h3 class="card-title">What the visual should convey</h3>
-        ${b.html}
-        ${b.overflowNote}
-      </div>
-    </div>
-  </div>`;
-        return renderSlideSection(`${header}${body}`, i, density, outline?.title);
-      }
-
-      // content (default)
+      // Keep prior fallback logic for non-planned slides.
       const title = clampText(stripUnsafe(s?.title || ""), 90);
       const kicker = pickKicker(s, outline);
       const bullets = normalizeBullets(s?.content, 12, 120);
@@ -532,23 +583,7 @@ export function outlineToStyledSlides(outline: Outline): string {
       const maxBullets = density === "compact" ? 8 : 6;
       const b = renderBullets(bullets, maxBullets);
       const header = renderHeader({ kicker, title });
-
-      const hasImage = !!s?.imageDataUri;
-      const body = hasImage
-        ? `
-  <div class="body">
-    <div class="grid-2">
-      <div class="card">
-        ${b.html}
-        ${b.overflowNote}
-      </div>
-      <div class="card accent">
-        <div class="image-frame"><img alt="" src="${escapeHtml(s.imageDataUri!)}" /></div>
-        ${s?.imageCredit ? `<div class="image-credit">${escapeHtml(s.imageCredit)}</div>` : ""}
-      </div>
-    </div>
-  </div>`
-        : `
+      const body = `
   <div class="body">
     <div class="card">
       ${b.html}

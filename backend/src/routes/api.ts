@@ -7,6 +7,7 @@ import multer from "multer";
 import { extractTextFromPptxBuffer } from "../utils/pptxImport";
 import { outlineToAiSlides, outlineToSimpleSlides, outlineToStyledSlides, wrapDeckHtml } from "../utils/deckHtml";
 import { enrichOutlineWithImages } from "../utils/imageEnrichment";
+import { enrichOutlineWithLayouts } from "../utils/layoutEnrichment";
 import { renderHtmlToPdfBuffer } from "../utils/htmlToPdf";
 
 const router = Router();
@@ -343,8 +344,10 @@ router.post("/deck-html", async (req, res) => {
       concurrency: 2,
     });
 
-    // Deterministic slide system: AI is allowed to assist content elsewhere,
-    // but slide HTML rendering is guarded and stable.
+    // Always-on: ask AI to choose a grid-based layout variant for each slide.
+    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+    // Rendering is still deterministic: layoutPlan selects from known variants.
     const slidesHtml = useAi
       ? await outlineToAiSlides(outline, anthropicJsonRequest, { concurrency: 2 })
       : outlineToStyledSlides(outline);
@@ -372,6 +375,9 @@ router.post("/export-pdf", async (req, res) => {
       maxDeckImages: 10,
       concurrency: 2,
     });
+
+    // Always-on: ask AI to choose a grid-based layout variant for each slide.
+    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
 
     // Build one combined HTML doc with page breaks.
     // Note: rendering uses the deterministic design system in deckHtml.ts.

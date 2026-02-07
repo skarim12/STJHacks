@@ -1,0 +1,128 @@
+export type LayoutBoxKind =
+  | "header"
+  | "bulletsCard"
+  | "imageCard"
+  | "quoteCard"
+  | "comparisonLeft"
+  | "comparisonRight"
+  | "placeholder";
+
+export type GridRect = {
+  colStart: number; // 1..12
+  colSpan: number; // 1..12
+  rowStart: number; // 1..8
+  rowSpan: number; // 1..8
+};
+
+export type LayoutBox = {
+  id: string;
+  kind: LayoutBoxKind;
+  rect: GridRect;
+};
+
+export type LayoutVariant = {
+  name: string;
+  slideTypes: Array<"title" | "content" | "comparison" | "quote" | "imagePlaceholder">;
+  boxes: LayoutBox[];
+};
+
+// 12x8 grid inside the safe area
+export const LAYOUT_VARIANTS: LayoutVariant[] = [
+  // CONTENT
+  {
+    name: "content.singleCard",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "body", kind: "bulletsCard", rect: { colStart: 1, colSpan: 12, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    name: "content.splitRightHero",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "body", kind: "bulletsCard", rect: { colStart: 1, colSpan: 7, rowStart: 3, rowSpan: 6 } },
+      { id: "image", kind: "imageCard", rect: { colStart: 8, colSpan: 5, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    name: "content.splitLeftHero",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "image", kind: "imageCard", rect: { colStart: 1, colSpan: 5, rowStart: 3, rowSpan: 6 } },
+      { id: "body", kind: "bulletsCard", rect: { colStart: 6, colSpan: 7, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+
+  // IMAGE PLACEHOLDER (or IMAGE)
+  {
+    name: "image.hero",
+    slideTypes: ["imagePlaceholder"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "image", kind: "imageCard", rect: { colStart: 1, colSpan: 8, rowStart: 3, rowSpan: 6 } },
+      { id: "body", kind: "bulletsCard", rect: { colStart: 9, colSpan: 4, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    name: "image.captionRight",
+    slideTypes: ["imagePlaceholder"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "body", kind: "bulletsCard", rect: { colStart: 1, colSpan: 5, rowStart: 3, rowSpan: 6 } },
+      { id: "image", kind: "imageCard", rect: { colStart: 6, colSpan: 7, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+
+  // COMPARISON
+  {
+    name: "comparison.twoCards",
+    slideTypes: ["comparison"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "left", kind: "comparisonLeft", rect: { colStart: 1, colSpan: 6, rowStart: 3, rowSpan: 6 } },
+      { id: "right", kind: "comparisonRight", rect: { colStart: 7, colSpan: 6, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+
+  // QUOTE
+  {
+    name: "quote.full",
+    slideTypes: ["quote"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "quote", kind: "quoteCard", rect: { colStart: 1, colSpan: 12, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    name: "quote.splitImage",
+    slideTypes: ["quote"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "quote", kind: "quoteCard", rect: { colStart: 1, colSpan: 7, rowStart: 3, rowSpan: 6 } },
+      { id: "image", kind: "imageCard", rect: { colStart: 8, colSpan: 5, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+
+  // TITLE
+  {
+    name: "title.center",
+    slideTypes: ["title"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 2, rowSpan: 4 } },
+      { id: "image", kind: "imageCard", rect: { colStart: 4, colSpan: 6, rowStart: 6, rowSpan: 3 } },
+    ],
+  },
+];
+
+export function getVariantByName(name: string): LayoutVariant | null {
+  return LAYOUT_VARIANTS.find((v) => v.name === name) || null;
+}
+
+export function allowedVariantsForSlideType(slideType: string): LayoutVariant[] {
+  const t = String(slideType || "").toLowerCase();
+  const norm = (t === "image" ? "imagePlaceholder" : t) as any;
+  return LAYOUT_VARIANTS.filter((v) => (v.slideTypes as any).includes(norm));
+}
