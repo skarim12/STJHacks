@@ -33,6 +33,8 @@ interface AppState {
   // Data
   outline: PresentationOutline | null;
   slides: SlideStructure[];
+  importedFileName: string | null;
+  extractedText: string | null;
   generating: boolean;
   error: string | null;
   selectedTheme: ColorScheme;
@@ -41,6 +43,7 @@ interface AppState {
   // Setters
   setOutline: (outline: PresentationOutline | null) => void;
   setSlides: (slides: SlideStructure[]) => void;
+  setImported: (fileName: string | null, extractedText: string | null) => void;
   setError: (err: string | null) => void;
   setTheme: (theme: ColorScheme) => void;
   setSelectedTemplate: (tpl: Template | null) => void;
@@ -49,6 +52,8 @@ interface AppState {
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
   editFromMessage: (message: string) => Promise<void>;
   exportPptx: () => Promise<void>;
+  downloadOutlineJson: () => void;
+  downloadExtractedText: () => void;
   importPptx: (file: File) => Promise<void>;
   smartSelectTemplate: (topic: string) => Promise<void>;
   generateThemeForIndustry: (
@@ -67,6 +72,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   outline: null,
   slides: [],
+  importedFileName: null,
+  extractedText: null,
   generating: false,
   error: null,
   selectedTheme: themeService.getDefaultScheme(),
@@ -74,6 +81,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   setOutline: (outline) => set({ outline }),
   setSlides: (slides) => set({ slides }),
+  setImported: (fileName, extractedText) => set({ importedFileName: fileName, extractedText }),
   setError: (error) => set({ error }),
   setTheme: (theme) => set({ selectedTheme: theme }),
   setSelectedTemplate: (tpl) => set({ selectedTemplate: tpl }),
@@ -133,11 +141,48 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
+  downloadOutlineJson: () => {
+    const outline = get().outline;
+    if (!outline) {
+      set({ error: "No outline to download yet." });
+      return;
+    }
+
+    const blob = new Blob([JSON.stringify(outline, null, 2)], { type: "application/json" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(outline.title || "outline").replace(/\s+/g, "_")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  downloadExtractedText: () => {
+    const text = get().extractedText;
+    const name = get().importedFileName || "deck";
+    if (!text) {
+      set({ error: "No extracted text available (upload/import a PPTX first)." });
+      return;
+    }
+
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name.replace(/\s+/g, "_")}_extracted.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
   importPptx: async (file: File) => {
     set({ generating: true, error: null });
     try {
-      const { outline } = await get().aiService.importPptx(file);
-      set({ outline, slides: outline.slides });
+      const { outline, extractedText } = await get().aiService.importPptx(file);
+      set({ outline, slides: outline.slides, importedFileName: file.name, extractedText });
     } catch (err: any) {
       set({ error: err?.message || "Failed to import PPTX" });
     } finally {

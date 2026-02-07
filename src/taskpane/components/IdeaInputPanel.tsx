@@ -39,13 +39,21 @@ export const IdeaInputPanel: React.FC = () => {
     editFromMessage,
     exportPptx,
     importPptx,
+    downloadOutlineJson,
+    downloadExtractedText,
     generating,
     powerPointService,
     selectedTheme,
     smartSelectTemplate,
+    importedFileName,
+    extractedText,
   } = useStore();
 
   const [editMessage, setEditMessage] = useState("");
+
+  const w = window as any;
+  const isOfficeHost = !!w.Office && typeof w.Office.onReady === "function";
+  const isPowerPointHost = !!w.PowerPoint && typeof w.PowerPoint.run === "function";
 
   useEffect(() => {
     if (debouncedIdea.trim()) {
@@ -73,10 +81,7 @@ export const IdeaInputPanel: React.FC = () => {
     await generateFromIdea(debouncedIdea, prefs);
 
     // If running inside PowerPoint, also insert slides.
-    const w = window as any;
-    const hasPowerPoint = !!w.PowerPoint && typeof w.PowerPoint.run === "function";
-
-    if (hasPowerPoint) {
+    if (isPowerPointHost) {
       const latestOutline = useStore.getState().outline;
       if (!latestOutline) return;
 
@@ -155,6 +160,12 @@ export const IdeaInputPanel: React.FC = () => {
             disabled={generating || !editMessage.trim()}
           />
           <DefaultButton text="Download .pptx" onClick={exportPptx} disabled={generating} />
+          <DefaultButton text="Download outline (.json)" onClick={downloadOutlineJson} disabled={generating} />
+          <DefaultButton
+            text="Download extracted text (.txt)"
+            onClick={downloadExtractedText}
+            disabled={generating || !extractedText}
+          />
           <label style={{ display: "inline-block" }}>
             <input
               type="file"
@@ -167,7 +178,7 @@ export const IdeaInputPanel: React.FC = () => {
                 e.currentTarget.value = "";
               }}
             />
-            <DefaultButton text="Upload .pptx" disabled={generating} />
+            <DefaultButton text={importedFileName ? `Upload .pptx (current: ${importedFileName})` : "Upload .pptx"} disabled={generating} />
           </label>
         </Stack>
       </Stack>
