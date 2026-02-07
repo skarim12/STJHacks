@@ -4,6 +4,10 @@ import { generateSlideImageOpenAI } from "./imageGeneration";
 export type ImageEnrichmentOptions = {
   allowExternalImages: boolean;
   allowGeneratedImages: boolean;
+  // Enforce a coherent look across the whole deck.
+  // - "photo": prefer photo-like sources
+  // - "illustration": prefer illustration-like sources
+  imageStyle?: "photo" | "illustration";
   maxDeckImages?: number;
   concurrency?: number;
 };
@@ -18,6 +22,7 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
   const allowGeneratedImages = !!opts.allowGeneratedImages;
   const maxDeckImages = opts.maxDeckImages ?? 10;
   const concurrency = opts.concurrency ?? 2;
+  const imageStyle = opts.imageStyle ?? "photo";
 
   const slides: any[] = Array.isArray(outline?.slides) ? outline.slides : [];
 
@@ -70,10 +75,10 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
       // 2) AI image generation fallback
       if (allowGeneratedImages) {
         try {
-          const gen = await generateSlideImageOpenAI({ prompt: query, style: "illustration" });
+          const gen = await generateSlideImageOpenAI({ prompt: query, style: imageStyle });
           if (gen?.dataUri) {
             s.imageDataUri = gen.dataUri;
-            s.imageCredit = "AI-generated (OpenAI)";
+            s.imageCredit = `AI-generated (${imageStyle})`;
             s.imageSourcePage = "";
             used++;
             report.imagesAdded++;

@@ -37,10 +37,48 @@ function heuristicVariant(slideType: string, hasImage: boolean, bullets: { count
 
   // content
   if (hasImage) {
-    if (bullets.count <= 6 && bullets.maxLen < 110) return "content.splitRightHero";
+    // Split layouts only look good when text is truly light.
+    if (bullets.count <= 5 && bullets.totalLen <= 420 && bullets.maxLen < 110) return "content.splitRightHero";
     return "content.singleCard";
   }
   return "content.singleCard";
+}
+
+function simpleHash(s: string): string {
+  // Deterministic, cheap. (Not crypto.)
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+function validateAndRepairVariant(opts: {
+  slideType: "title" | "content" | "comparison" | "quote" | "imagePlaceholder";
+  hasImage: boolean;
+  stats: { count: number; maxLen: number; totalLen: number };
+  chosen: string;
+}): string {
+  const { slideType, hasImage, stats } = opts;
+
+  // Hard guards: variants that visually require images.
+  if (!hasImage) {
+    if (opts.chosen === "content.splitRightHero" || opts.chosen === "content.splitLeftHero") return "content.singleCard";
+    if (opts.chosen === "quote.splitImage") return "quote.full";
+    if (slideType === "imagePlaceholder") return "image.captionRight"; // still OK with placeholder
+  }
+
+  // Text-heavy guardrails.
+  const heavy = stats.count >= 7 || stats.totalLen >= 520 || stats.maxLen >= 140;
+  if (heavy) {
+    if (slideType === "content") return "content.singleCard";
+    if (slideType === "imagePlaceholder") return "image.captionRight";
+    if (slideType === "quote") return "quote.full";
+  }
+
+  // Keep chosen if it exists and is allowed elsewhere.
+  return opts.chosen;
 }
 
 export async function enrichOutlineWithLayouts(outline: any, opts: LayoutEnrichmentOptions) {
@@ -87,7 +125,12 @@ First bullets:
 ${(Array.isArray(s.content) ? s.content : []).slice(0, 4).map((b: any) => `- ${String(b).slice(0, 140)}`).join("\n")}
 `;
 
-    const cacheKey = `layout:${deckTitle}:${i}:${slideType}:${hasImage ? 1 : 0}:${stats.count}:${stats.maxLen}`;
+    const title = String(s.title || "");
+    const bulletsPreview = (Array.isArray(s.content) ? s.content : []).slice(0, 4).map((b: any) => String(b ?? "")).join("\n");
+    const contentSig = simpleHash(`${slideType}|${title}|${bulletsPreview}`);
+
+    // Include a content signature so caching doesn't wrongly conflate unrelated slides.
+    const cacheKey = `layout:${deckTitle}:${i}:${slideType}:${hasImage ? 1 : 0}:${stats.count}:${stats.maxLen}:${Math.round(stats.totalLen / 50)}:${contentSig}`;
 
     let chosen = fallback;
     try {
@@ -100,6 +143,12 @@ ${(Array.isArray(s.content) ? s.content : []).slice(0, 4).map((b: any) => `- ${S
     } catch {
       // fallback
     }
+
+    // Deterministic repair pass: prevents broken layouts.
+    chosen = validateAndRepairVariant({ slideType, hasImage, stats, chosen });
+
+    // Ensure repaired choice is still allowed; else drop to heuristic.
+    if (!variants.some((vv) => vv.name === chosen)) chosen = fallback;
 
     s.layoutPlan = { variant: chosen } satisfies LayoutPlan;
   }

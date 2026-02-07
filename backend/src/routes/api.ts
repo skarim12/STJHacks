@@ -335,11 +335,13 @@ router.post("/deck-html", async (req, res) => {
     const useAi = (req.body as any)?.useAi !== false; // default true
     const allowExternalImages = (req.body as any)?.allowExternalImages === true;
     const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
+    const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
     if (!outline) return res.status(400).json({ error: "outline required" });
 
     const enrichment = await enrichOutlineWithImages(outline, {
       allowExternalImages,
       allowGeneratedImages,
+      imageStyle,
       maxDeckImages: 10,
       concurrency: 2,
     });
@@ -367,11 +369,13 @@ router.post("/export-pdf", async (req, res) => {
     const useAi = (req.body as any)?.useAi !== false; // default true
     const allowExternalImages = (req.body as any)?.allowExternalImages === true;
     const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
+    const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
     if (!outline) return res.status(400).json({ error: "outline required" });
 
     const enrichment = await enrichOutlineWithImages(outline, {
       allowExternalImages,
       allowGeneratedImages,
+      imageStyle,
       maxDeckImages: 10,
       concurrency: 2,
     });

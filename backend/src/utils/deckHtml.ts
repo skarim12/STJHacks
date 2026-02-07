@@ -82,7 +82,11 @@ function normalizeSlideType(t: unknown): "title" | "content" | "comparison" | "q
   return "content";
 }
 
-function computeDensity(bullets: string[]): "normal" | "compact" {
+function computeDensity(bullets: string[]): "normal" | "compact" | "dense" {
+  const totalLen = bullets.reduce((a, b) => a + b.length, 0);
+  if (bullets.length > 8) return "dense";
+  if (totalLen > 850) return "dense";
+  if (bullets.some((b) => b.length > 140)) return "dense";
   if (bullets.length > 6) return "compact";
   if (bullets.some((b) => b.length > 105)) return "compact";
   return "normal";
@@ -193,11 +197,11 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
 
       --font-sans: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
 
-      --title: 72px;
-      --subtitle: 40px;
-      --kicker: 22px;
-      --body: 30px;
-      --small: 22px;
+      --title: 62px;
+      --subtitle: 34px;
+      --kicker: 20px;
+      --body: 26px;
+      --small: 20px;
 
       --lh-title: 1.08;
       --lh-body: 1.25;
@@ -235,9 +239,17 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
     }
 
     .slide[data-density="compact"]{
-      --body: 26px;
-      --row-gap: 22px;
+      --body: 23px;
+      --row-gap: 20px;
       --gutter: 40px;
+    }
+
+    .slide[data-density="dense"]{
+      --title: 56px;
+      --subtitle: 30px;
+      --body: 22px;
+      --row-gap: 18px;
+      --gutter: 36px;
     }
 
     .safe{
@@ -271,6 +283,9 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       letter-spacing: var(--tracking-kicker);
       text-transform: uppercase;
       color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .title{
@@ -278,6 +293,11 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       font-weight: var(--w-bold);
       line-height: var(--lh-title);
       margin: 0;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .subtitle{
@@ -286,6 +306,11 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       color: var(--muted);
       line-height: 1.15;
       margin: 0;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .divider{
@@ -308,11 +333,11 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       background: var(--panel);
       border: var(--stroke) solid var(--stroke-color);
       border-radius: var(--r-lg);
-      padding: 42px 44px;
+      padding: 38px 40px;
       box-shadow: var(--shadow-1);
       display:flex;
       flex-direction:column;
-      gap: 22px;
+      gap: 18px;
       min-height: 0;
     }
 
@@ -331,6 +356,16 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       display:flex;
       align-items:center;
       justify-content:center;
+      position: relative;
+    }
+
+    /* Consistent treatment across sources (Wikimedia/OpenAI) so decks feel cohesive. */
+    .image-frame::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background: linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.26));
+      pointer-events:none;
     }
 
     .image-frame img{
@@ -338,6 +373,7 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       height: 100%;
       object-fit: cover;
       display:block;
+      filter: saturate(1.05) contrast(1.05);
     }
 
     .image-credit{
@@ -459,7 +495,7 @@ function renderBullets(bullets: string[], max: number): { html: string; overflow
 function renderSlideSection(
   inner: string,
   index: number,
-  density: "normal" | "compact",
+  density: "normal" | "compact" | "dense",
   deckTitle?: string
 ): string {
   const left = deckTitle ? escapeHtml(clampText(stripUnsafe(deckTitle), 40)) : "";
@@ -492,7 +528,7 @@ export function outlineToStyledSlides(outline: Outline): string {
 
     const bullets = normalizeBullets(s?.content, 12, 120);
     const density = computeDensity(bullets);
-    const maxBullets = density === "compact" ? 8 : 6;
+    const maxBullets = density === "dense" ? 9 : density === "compact" ? 8 : 6;
     const b = renderBullets(bullets, maxBullets);
 
     const { leftTitle, rightTitle, leftBullets, rightBullets } = type === "comparison" ? parseComparison(s) : ({} as any);
@@ -571,7 +607,7 @@ export function outlineToStyledSlides(outline: Outline): string {
         const kicker = clampText(stripUnsafe("Presentation"), 36);
         const header = renderHeader({ kicker, title, subtitle: subtitle || undefined });
         const body = `<div class="body"><div class="card"><p class="subtitle">${escapeHtml(clampText(stripUnsafe(s?.notes || ""), 200))}</p></div></div>`;
-        const density: "normal" | "compact" = "normal";
+        const density: "normal" | "compact" | "dense" = "normal";
         return renderSlideSection(`${header}${body}`, i, density, outline?.title);
       }
 
@@ -580,7 +616,7 @@ export function outlineToStyledSlides(outline: Outline): string {
       const kicker = pickKicker(s, outline);
       const bullets = normalizeBullets(s?.content, 12, 120);
       const density = computeDensity(bullets);
-      const maxBullets = density === "compact" ? 8 : 6;
+      const maxBullets = density === "dense" ? 9 : density === "compact" ? 8 : 6;
       const b = renderBullets(bullets, maxBullets);
       const header = renderHeader({ kicker, title });
       const body = `
