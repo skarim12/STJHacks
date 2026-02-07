@@ -114,6 +114,7 @@ Return STRICT JSON only:
 
 Rules:
 - background/text MUST have strong contrast.
+- Default to a DARK background theme unless the description explicitly requests a light theme.
 - prefer safe, professional colors (no neon unless asked).
 `.trim();
 
