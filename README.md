@@ -39,17 +39,11 @@ You do **not** need to run `yo office` unless you want scaffolding. This repo al
 
 ### 1) Install dependencies
 
-From the project root:
+On this machine, PowerShell may resolve `npm` to a broken stub. Use the real npm:
 
-```bash
-npm install
-```
-
-Backend:
-
-```bash
-cd backend
-npm install
+```powershell
+& "C:\Program Files\nodejs\npm.cmd" install
+& "C:\Program Files\nodejs\npm.cmd" --prefix backend install
 ```
 
 ### 2) Configure backend environment
@@ -65,7 +59,7 @@ PORT=4000
 
 From the project root:
 
-```bash
+```powershell
 python run_dev.py
 ```
 
@@ -89,11 +83,21 @@ The dev server hosts:
 - Commands: https://localhost:3000/commands.html
 - Manifest (copied): https://localhost:3000/manifest.xml
 
-### 4) Sideload into PowerPoint
+### 4) Run in PowerPoint (Desktop)
+
+#### Option A: VS Code (recommended)
+
+1. Install the VS Code extension **Microsoft Office Add-in Debugger** (ms-office.officedebugger)
+2. In VS Code → Run and Debug → select **PowerPoint: Debug Add-in (Office Debugger)**
+3. Press **F5**
+
+This starts the dev servers and launches PowerPoint with the add-in sideloaded.
+
+#### Option B: Manual sideload
 
 In PowerPoint (desktop):
-- Insert → My Add-ins → Upload My Add-in
-- Select a local copy of `dist/manifest.xml` (or download/save the manifest served from the dev server URL above)
+- Insert → Get Add-ins → My Add-ins → Upload My Add-in
+- Select **`${repo}\manifest.xml`** (repo root)
 
 PowerPoint will add an **AI Assistant** button on the Home tab that opens the taskpane.
 
