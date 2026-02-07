@@ -1,4 +1,5 @@
 import PptxGenJS from "pptxgenjs";
+import sharp from "sharp";
 import { getVariantByName, type LayoutVariant } from "./layoutVariants";
 
 function hexOrDefault(h: any, fallback: string): string {
@@ -8,6 +9,35 @@ function hexOrDefault(h: any, fallback: string): string {
 
 function pptxColor(hex: string): string {
   return String(hex).replace(/^#/, "").toUpperCase();
+}
+
+function parseDataUri(dataUri: string): { mime: string; buf: Buffer } | null {
+  const m = String(dataUri || "").match(/^data:([^;]+);base64,(.+)$/i);
+  if (!m) return null;
+  try {
+    return { mime: String(m[1]).toLowerCase(), buf: Buffer.from(String(m[2]), "base64") };
+  } catch {
+    return null;
+  }
+}
+
+async function normalizeImageForPptx(dataUri: string): Promise<string | null> {
+  // pptxgenjs *usually* accepts data URIs, but in practice some JPEG/WebP variants fail.
+  // Normalize deterministically to JPEG, resized, to improve reliability.
+  const parsed = parseDataUri(dataUri);
+  if (!parsed?.buf?.length) return null;
+
+  try {
+    const out = await sharp(parsed.buf)
+      .rotate()
+      .resize({ width: 1800, withoutEnlargement: true })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
+
+    return `data:image/jpeg;base64,${out.toString("base64")}`;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -113,17 +143,20 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     // Full-bleed background image
     if (variantName === "image.fullBleed" && hasImage) {
       try {
-        slide.addImage({ data: String(s.imageDataUri), x: 0, y: 0, w: SLIDE_W, h: SLIDE_H });
-        slide.addShape(pptx.ShapeType.rect, {
-          x: 0,
-          y: 0,
-          w: SLIDE_W,
-          h: SLIDE_H,
-          fill: { color: "000000", transparency: 45 },
-          line: { color: "000000", transparency: 100 },
-        });
+        const normalized = await normalizeImageForPptx(String(s.imageDataUri));
+        if (normalized) {
+          slide.addImage({ data: normalized, x: 0, y: 0, w: SLIDE_W, h: SLIDE_H });
+          slide.addShape(pptx.ShapeType.rect, {
+            x: 0,
+            y: 0,
+            w: SLIDE_W,
+            h: SLIDE_H,
+            fill: { color: "000000", transparency: 45 },
+            line: { color: "000000", transparency: 100 },
+          });
+        }
       } catch {
-        // ignore
+        // If image fails, continue with text-only slide.
       }
     }
 
@@ -183,7 +216,10 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
 
       if (kind === "imageCard" && hasImage && variantName !== "image.fullBleed") {
         try {
-          slide.addImage({ data: String(s.imageDataUri), x: box.x, y: box.y, w: box.w, h: box.h });
+          const normalized = await normalizeImageForPptx(String(s.imageDataUri));
+          if (normalized) {
+            slide.addImage({ data: normalized, x: box.x, y: box.y, w: box.w, h: box.h });
+          }
         } catch {
           // ignore
         }
