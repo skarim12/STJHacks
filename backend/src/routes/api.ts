@@ -49,7 +49,7 @@ async function anthropicJsonRequest(
       {
         model: config.defaultModel,
         max_tokens: maxTokens ?? config.maxTokens,
-        temperature: 0.5,
+        temperature: 0.2,
         system,
         messages: [{ role: "user", content: user }],
       },
@@ -153,6 +153,54 @@ async function anthropicJsonRequest(
     }
   }
 
+  // 3) One retry: ask the model to re-emit *only* valid JSON.
+  try {
+    const repairSystem = `${system}\n\nYou MUST return COMPLETE, VALID JSON only. No code fences. No commentary.`;
+    const repairUser = `Your previous output was invalid/truncated JSON. Re-output the full JSON now.\n\nOriginal request:\n${user}`;
+
+    const repairResp = await axios.post(
+      ANTHROPIC_URL,
+      {
+        model: config.defaultModel,
+        max_tokens: Math.max(maxTokens ?? config.maxTokens, 8192),
+        temperature: 0,
+        system: repairSystem,
+        messages: [{ role: "user", content: repairUser }],
+      },
+      { headers: headers() }
+    );
+
+    const repairContent = (repairResp.data as any)?.content;
+    const repairFirst = Array.isArray(repairContent) && repairContent.length ? repairContent[0] : "";
+    const repairRaw =
+      typeof repairFirst === "object" && repairFirst && "text" in repairFirst
+        ? (repairFirst as any).text
+        : String(repairFirst);
+
+    const repairCleaned = String(repairRaw)
+      .trim()
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```\s*$/i, "")
+      .trim();
+
+    const repairedDirect = tryParse(repairCleaned);
+    if (repairedDirect) {
+      cache.set(cacheKey, repairedDirect);
+      return repairedDirect;
+    }
+
+    const repairedExtracted = extractFirstJson(repairCleaned);
+    if (repairedExtracted) {
+      const repairedParsed = tryParse(repairedExtracted);
+      if (repairedParsed) {
+        cache.set(cacheKey, repairedParsed);
+        return repairedParsed;
+      }
+    }
+  } catch {
+    // fall through to error below
+  }
+
   const preview = String(rawText).slice(0, 5000);
   throw new Error(
     `Anthropic returned non-JSON (or invalid JSON). First 5k chars:\n${preview}`
@@ -210,7 +258,8 @@ Return JSON:
 `.trim();
 
     const cacheKey = `outline:${userIdea}`;
-    const json = await anthropicJsonRequest(cacheKey, system, userIdea);
+    // Outlines can be long; give the model enough room to finish valid JSON.
+    const json = await anthropicJsonRequest(cacheKey, system, userIdea, 8192);
     res.json(json);
   } catch (err: any) {
     // eslint-disable-next-line no-console
