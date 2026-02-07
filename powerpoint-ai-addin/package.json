@@ -1,0 +1,12 @@
+{
+  "name": "powerpoint-ai-addin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered PowerPoint Task Pane add-in (React + TypeScript + Office.js + Fluent UI)",
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack serve --mode development --hot",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
