@@ -1,5 +1,5 @@
-import React from "react";
-import { Stack, Text, List, TextField, DefaultButton } from "@fluentui/react";
+import React, { useState } from "react";
+import { Stack, Text, List, TextField, DefaultButton, PrimaryButton, Spinner } from "@fluentui/react";
 import { useStore } from "../store/useStore";
 import type { SlideStructure } from "../types";
 
@@ -9,7 +9,10 @@ interface Props {
 }
 
 export const SlidePreview: React.FC<Props> = ({ slides, onEdit }) => {
-  const { setSlideDescribe, setSlideLook } = useStore();
+  const { setSlideDescribe, setSlideLook, editSlide, getSlideHtml, generating } = useStore();
+  const [slideHtml, setSlideHtml] = useState<Record<number, string>>({});
+  const [loadingIndex, setLoadingIndex] = useState<number | null>(null);
+  const [editMsg, setEditMsg] = useState<Record<number, string>>({});
 
   return (
     <Stack tokens={{ childrenGap: 8 }}>
@@ -39,8 +42,56 @@ export const SlidePreview: React.FC<Props> = ({ slides, onEdit }) => {
                       Type: {slide.slideType}
                     </Text>
                   </Stack>
-                  <DefaultButton text="Edit" onClick={() => onEdit(index)} />
+                  <DefaultButton text="Edit JSON" onClick={() => onEdit(index)} />
+                  <PrimaryButton
+                    text={slideHtml[index] ? "Refresh preview" : "Load preview"}
+                    disabled={!!loadingIndex || generating}
+                    onClick={async () => {
+                      setLoadingIndex(index);
+                      try {
+                        const html = await getSlideHtml(index);
+                        setSlideHtml((m) => ({ ...m, [index]: html }));
+                      } finally {
+                        setLoadingIndex(null);
+                      }
+                    }}
+                  />
                 </Stack>
+
+                {slideHtml[index] && (
+                  <div
+                    style={{
+                      width: "100%",
+                      border: "1px solid rgba(0,0,0,.15)",
+                      borderRadius: 6,
+                      overflow: "hidden",
+                      background: "#111",
+                    }}
+                  >
+                    <div style={{ width: "100%", height: 240, position: "relative" }}>
+                      <div
+                        style={{
+                          transform: "scale(0.22)",
+                          transformOrigin: "top left",
+                          width: 1920,
+                          height: 1080,
+                          position: "absolute",
+                          left: 0,
+                          top: 0,
+                        }}
+                      >
+                        <iframe
+                          title={`Slide ${index + 1} preview`}
+                          style={{ width: 1920, height: 1080, border: 0, background: "transparent" }}
+                          srcDoc={slideHtml[index]}
+                          sandbox="allow-same-origin"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {loadingIndex === index && <Spinner label="Rendering slide…" />}
 
                 <TextField
                   label="Describe (optional)"
@@ -55,6 +106,32 @@ export const SlidePreview: React.FC<Props> = ({ slides, onEdit }) => {
                   <DefaultButton text="Dark" onClick={() => setSlideLook(index, "dark")} />
                   <DefaultButton text="Bold" onClick={() => setSlideLook(index, "bold")} />
                 </Stack>
+
+                <TextField
+                  label="Suggest an edit for this slide"
+                  placeholder='E.g., "Make the title shorter and punchier" or "Turn bullets into a 2x2"'
+                  value={editMsg[index] || ""}
+                  onChange={(_, v) => setEditMsg((m) => ({ ...m, [index]: v || "" }))}
+                  disabled={generating}
+                />
+                <PrimaryButton
+                  text="Apply slide edit"
+                  disabled={generating || !(editMsg[index] || "").trim()}
+                  onClick={async () => {
+                    const msg = (editMsg[index] || "").trim();
+                    if (!msg) return;
+                    await editSlide(index, msg);
+                    setEditMsg((m) => ({ ...m, [index]: "" }));
+                    // refresh preview automatically
+                    setLoadingIndex(index);
+                    try {
+                      const html = await getSlideHtml(index);
+                      setSlideHtml((m) => ({ ...m, [index]: html }));
+                    } finally {
+                      setLoadingIndex(null);
+                    }
+                  }}
+                />
               </Stack>
             ) : null
           }

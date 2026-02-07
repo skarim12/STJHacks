@@ -305,7 +305,8 @@ Return STRICT JSON only: { "notes": "..." }
     outline: PresentationOutline,
     useAi: boolean = true,
     allowExternalImages: boolean = false,
-    allowGeneratedImages: boolean = false
+    allowGeneratedImages: boolean = false,
+    imageStyle: "photo" | "illustration" = "photo"
   ): Promise<string> {
     try {
       const response = await axios.post(`${API_BASE}/deck-html`, {
@@ -313,8 +314,41 @@ Return STRICT JSON only: { "notes": "..." }
         useAi,
         allowExternalImages,
         allowGeneratedImages,
+        imageStyle,
       });
       return String((response.data as any)?.html || "");
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
+  }
+
+  async getSlideHtml(
+    outline: PresentationOutline,
+    slideIndex: number,
+    useAi: boolean = true,
+    allowExternalImages: boolean = false,
+    allowGeneratedImages: boolean = false,
+    imageStyle: "photo" | "illustration" = "photo"
+  ): Promise<string> {
+    try {
+      const response = await axios.post(`${API_BASE}/slide-html`, {
+        outline,
+        slideIndex,
+        useAi,
+        allowExternalImages,
+        allowGeneratedImages,
+        imageStyle,
+      });
+      return String((response.data as any)?.html || "");
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
+  }
+
+  async editSlide(outline: PresentationOutline, slideIndex: number, message: string): Promise<PresentationOutline> {
+    try {
+      const response = await axios.post(`${API_BASE}/edit-slide`, { outline, slideIndex, message });
+      return response.data as PresentationOutline;
     } catch (err: any) {
       throw new Error(extractApiError(err));
     }

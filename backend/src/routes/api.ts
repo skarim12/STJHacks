@@ -558,4 +558,91 @@ Rules:
   }
 });
 
+router.post("/edit-slide", async (req, res) => {
+  try {
+    const outline = (req.body as any)?.outline;
+    const message = String((req.body as any)?.message || "").trim();
+    const slideIndex = Number((req.body as any)?.slideIndex);
+    if (!outline) return res.status(400).json({ error: "outline required" });
+    if (!Number.isFinite(slideIndex)) return res.status(400).json({ error: "slideIndex required" });
+    if (!message) return res.status(400).json({ error: "message required" });
+
+    const slides = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+    if (slideIndex < 0 || slideIndex >= slides.length) {
+      return res.status(400).json({ error: `slideIndex out of range (0..${Math.max(0, slides.length - 1)})` });
+    }
+
+    const system = `
+You are a presentation editor.
+
+You will be given an existing presentation outline JSON, a target slide index, and an edit instruction.
+Return STRICT JSON only, with the SAME schema as the outline.
+
+Rules:
+- Only modify the slide at the given index.
+- Preserve the number of slides and slide ordering.
+- Do NOT regenerate the entire deck.
+- You MAY adjust: slide.title, slide.content bullets, slide.notes, slide.describe, slide.look.
+- Do NOT remove images or change imageDataUri.
+- Keep bullets slide-ready, concise.
+`.trim();
+
+    const userPrompt = `Slide index to edit: ${slideIndex}
+
+Edit instruction:
+${message}
+
+Existing outline JSON:
+${JSON.stringify(outline)}`;
+
+    const cacheKey = `editSlide:${slideIndex}:${message}:${JSON.stringify(slides[slideIndex] || {}).slice(0, 1500)}`;
+    const json = await anthropicJsonRequest(cacheKey, system, userPrompt, 4096);
+    res.json(json);
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to edit slide", details: err.message });
+  }
+});
+
+router.post("/slide-html", async (req, res) => {
+  try {
+    const outline = (req.body as any)?.outline;
+    const slideIndex = Number((req.body as any)?.slideIndex);
+    const useAi = (req.body as any)?.useAi !== false;
+    const allowExternalImages = (req.body as any)?.allowExternalImages === true;
+    const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
+    const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
+    if (!outline) return res.status(400).json({ error: "outline required" });
+    if (!Number.isFinite(slideIndex)) return res.status(400).json({ error: "slideIndex required" });
+
+    const slides = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+    if (slideIndex < 0 || slideIndex >= slides.length) {
+      return res.status(400).json({ error: `slideIndex out of range (0..${Math.max(0, slides.length - 1)})` });
+    }
+
+    await enrichOutlineWithImages(outline, {
+      allowExternalImages,
+      allowGeneratedImages,
+      imageStyle,
+      maxDeckImages: 10,
+      concurrency: 2,
+    });
+    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+    if (useAi) await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
+
+    // Render full deck then extract the requested slide section.
+    const slidesHtml = await outlineToStyledSlides(outline);
+    const sections = String(slidesHtml).split(/\n(?=<section class="slide")/g);
+    const target = sections[slideIndex] || "";
+    const html = wrapDeckHtml(target, outline);
+
+    res.json({ html });
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to generate slide HTML", details: err.message });
+  }
+});
+
 export default router;

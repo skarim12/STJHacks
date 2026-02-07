@@ -65,6 +65,8 @@ interface AppState {
   // Flows
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
   editFromMessage: (message: string) => Promise<void>;
+  editSlide: (slideIndex: number, message: string) => Promise<void>;
+  getSlideHtml: (slideIndex: number) => Promise<string>;
   exportPptx: () => Promise<void>;
   exportPdf: () => Promise<void>;
   downloadOutlineJson: () => void;
@@ -162,6 +164,36 @@ export const useStore = create<AppState>((set, get) => ({
     } finally {
       set({ generating: false });
     }
+  },
+
+  editSlide: async (slideIndex: number, message: string) => {
+    const current = get().outline;
+    if (!current) {
+      set({ error: "Generate an outline first, then edit a slide." });
+      return;
+    }
+    set({ generating: true, error: null });
+    try {
+      const updated = await get().aiService.editSlide(current, slideIndex, message);
+      set({ outline: updated, slides: updated.slides });
+    } catch (err: any) {
+      set({ error: err?.message || "Failed to edit slide" });
+    } finally {
+      set({ generating: false });
+    }
+  },
+
+  getSlideHtml: async (slideIndex: number) => {
+    const outline = get().outline;
+    if (!outline) throw new Error("No outline available");
+    return await get().aiService.getSlideHtml(
+      outline,
+      slideIndex,
+      true,
+      get().externalImagesEnabled,
+      get().generatedImagesEnabled,
+      "photo"
+    );
   },
 
   exportPptx: async () => {
