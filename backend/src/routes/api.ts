@@ -50,9 +50,16 @@ async function anthropicJsonRequest(
   const text =
     typeof first === "object" && first && "text" in first ? (first as any).text : String(first);
 
-  const json = JSON.parse(text);
-  cache.set(cacheKey, json);
-  return json;
+  try {
+    const json = JSON.parse(text);
+    cache.set(cacheKey, json);
+    return json;
+  } catch (e: any) {
+    const preview = String(text).slice(0, 5000);
+    throw new Error(
+      `Anthropic returned non-JSON (or invalid JSON). First 5k chars:\n${preview}`
+    );
+  }
 }
 
 router.post("/outline", async (req, res) => {
