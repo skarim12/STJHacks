@@ -16,6 +16,9 @@ export type Slide = {
   imageSourcePage?: string;
   // Always-on layout plan (set by backend). Renderer uses this to place boxes.
   layoutPlan?: { variant: string };
+
+  // Optional per-slide styling + shapes (set by backend).
+  stylePlan?: any;
 };
 
 export type Outline = {
@@ -317,7 +320,20 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       flex-direction: column;
       gap: var(--row-gap);
       min-height: 0;
+      position: relative;
     }
+
+    /* Decorative shapes live behind main content, within the safe area. */
+    .decor{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      z-index: 0;
+    }
+
+    .shape{ position:absolute; }
+
+    .layout-grid{ position: relative; z-index: 1; }
 
     /* Grid-based planned layouts (always-on). */
     .layout-grid{
@@ -499,13 +515,106 @@ ${slideHtml}
 // Deterministic slide rendering (no arbitrary HTML from AI)
 // -----------------------------
 
-function renderHeader(opts: { kicker?: string; title: string; subtitle?: string }): string {
-  const kicker = opts.kicker ? `<div class="kicker">${escapeHtml(opts.kicker)}</div>` : "";
-  const subtitle = opts.subtitle ? `<p class="subtitle">${escapeHtml(opts.subtitle)}</p>` : "";
+function styleAttrFromPlan(plan: any, key: "title" | "subtitle" | "kicker" | "body"): string {
+  const p = plan && typeof plan === "object" ? (plan as any)[key] : null;
+  if (!p || typeof p !== "object") return "";
+
+  const css: string[] = [];
+  const ff = String((p as any).fontFace || "").trim();
+  if (ff) css.push(`font-family:${escapeHtml(ff)}, var(--font-sans)`);
+  const fs = Number((p as any).fontSize);
+  if (Number.isFinite(fs) && fs > 0) css.push(`font-size:${Math.round(fs)}px`);
+  const col = String((p as any).color || "").trim();
+  if (/^#?[0-9a-f]{6}$/i.test(col)) css.push(`color:${col.startsWith("#") ? col : `#${col}`}`);
+  const w = String((p as any).weight || "").toLowerCase().trim();
+  if (w === "regular") css.push(`font-weight:400`);
+  if (w === "medium") css.push(`font-weight:600`);
+  if (w === "bold") css.push(`font-weight:750`);
+
+  return css.length ? ` style="${css.join(";")}"` : "";
+}
+
+function renderShapes(plan: any): string {
+  const shapes = plan && typeof plan === "object" ? (plan as any).shapes : null;
+  if (!Array.isArray(shapes) || !shapes.length) return "";
+
+  const renderRect = (s: any): string => {
+    const x = Math.max(0, Math.min(1, Number(s?.x ?? 0)));
+    const y = Math.max(0, Math.min(1, Number(s?.y ?? 0)));
+    const w = Math.max(0, Math.min(1, Number(s?.w ?? 0.2)));
+    const h = Math.max(0, Math.min(1, Number(s?.h ?? 0.1)));
+    const fill = String(s?.fill || "").trim();
+    const stroke = String(s?.stroke || "").trim();
+    const sw = Number(s?.strokeWidth ?? 0);
+    const r = Number(s?.radius ?? 0);
+    const op = Math.max(0, Math.min(1, Number(s?.opacity ?? 1)));
+
+    const styles: string[] = [
+      `left:${(x * 100).toFixed(2)}%`,
+      `top:${(y * 100).toFixed(2)}%`,
+      `width:${(w * 100).toFixed(2)}%`,
+      `height:${(h * 100).toFixed(2)}%`,
+      `opacity:${op.toFixed(3)}`,
+      `border-radius:${Math.max(0, Math.min(80, r))}px`,
+    ];
+    if (/^#?[0-9a-f]{6}$/i.test(fill)) styles.push(`background:${fill.startsWith("#") ? fill : `#${fill}`}`);
+    if (/^#?[0-9a-f]{6}$/i.test(stroke) && Number.isFinite(sw) && sw > 0) {
+      styles.push(`border:${Math.round(sw)}px solid ${stroke.startsWith("#") ? stroke : `#${stroke}`}`);
+    }
+
+    return `<div class="shape" style="${styles.join(";")}"></div>`;
+  };
+
+  const renderLine = (s: any): string => {
+    const x1 = Math.max(0, Math.min(1, Number(s?.x1 ?? 0)));
+    const y1 = Math.max(0, Math.min(1, Number(s?.y1 ?? 0)));
+    const x2 = Math.max(0, Math.min(1, Number(s?.x2 ?? 0.4)));
+    const y2 = Math.max(0, Math.min(1, Number(s?.y2 ?? 0)));
+    const stroke = String(s?.stroke || "").trim();
+    const sw = Number(s?.strokeWidth ?? 4);
+    const op = Math.max(0, Math.min(1, Number(s?.opacity ?? 1)));
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.max(0.001, Math.hypot(dx, dy));
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+    const color = /^#?[0-9a-f]{6}$/i.test(stroke) ? (stroke.startsWith("#") ? stroke : `#${stroke}`) : "var(--accent)";
+
+    const styles: string[] = [
+      `left:${(x1 * 100).toFixed(2)}%`,
+      `top:${(y1 * 100).toFixed(2)}%`,
+      `width:${(len * 100).toFixed(2)}%`,
+      `height:${Math.max(1, Math.min(18, Math.round(sw)))}px`,
+      `background:${color}`,
+      `opacity:${op.toFixed(3)}`,
+      `transform-origin: 0 0`,
+      `transform: rotate(${angle.toFixed(3)}deg)`,
+    ];
+
+    return `<div class="shape" style="${styles.join(";")}"></div>`;
+  };
+
+  const html = shapes
+    .slice(0, 12)
+    .map((s: any) => {
+      const k = String(s?.kind || "").toLowerCase();
+      if (k === "rect") return renderRect(s);
+      if (k === "line") return renderLine(s);
+      return "";
+    })
+    .join("");
+
+  return html ? `<div class="decor">${html}</div>` : "";
+}
+
+function renderHeader(opts: { kicker?: string; title: string; subtitle?: string; stylePlan?: any }): string {
+  const kicker = opts.kicker ? `<div class="kicker"${styleAttrFromPlan(opts.stylePlan, "kicker")}>${escapeHtml(opts.kicker)}</div>` : "";
+  const subtitle = opts.subtitle ? `<p class="subtitle"${styleAttrFromPlan(opts.stylePlan, "subtitle")}>${escapeHtml(opts.subtitle)}</p>` : "";
   return `
   <div class="header">
     ${kicker}
-    <h1 class="title">${escapeHtml(opts.title)}</h1>
+    <h1 class="title"${styleAttrFromPlan(opts.stylePlan, "title")}>${escapeHtml(opts.title)}</h1>
     ${subtitle}
   </div>
   <div class="divider"></div>`;
@@ -605,8 +714,9 @@ export function outlineToStyledSlides(outline: Outline): string {
         }</div>`
       : `<div class="placeholder">${escapeHtml(clampText(stripUnsafe("Visual placeholder"), 60))}<br/>${escapeHtml(clampText(stripUnsafe(title), 60))}</div>`;
 
-    const headerHtml = renderHeader({ kicker, title, subtitle: subtitle || undefined });
-    const bulletsCard = `<div class="card">${b.html}${b.overflowNote}</div>`;
+    const headerHtml = renderHeader({ kicker, title, subtitle: subtitle || undefined, stylePlan: (s as any)?.stylePlan });
+    const bodyStyle = styleAttrFromPlan((s as any)?.stylePlan, "body");
+    const bulletsCard = `<div class="card"${bodyStyle}>${b.html}${b.overflowNote}</div>`;
     const quoteCard = `<div class="card"><div class="quote">${escapeHtml(quoteText || "—")}</div>${
       attribution ? `<div class="quote-by">${escapeHtml(attribution)}</div>` : ""
     }</div>`;
@@ -648,7 +758,8 @@ export function outlineToStyledSlides(outline: Outline): string {
       })
       .join("");
 
-    const inner = `<div class="layout-grid">${boxesHtml}</div>`;
+    const decor = renderShapes((s as any)?.stylePlan);
+    const inner = `${decor}<div class="layout-grid">${boxesHtml}</div>`;
     const look = (s as any)?.look || (outline as any)?.look || "default";
     return renderSlideSection(inner, i, density, deckTitle, look);
   };

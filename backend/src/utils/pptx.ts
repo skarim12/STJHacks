@@ -76,16 +76,28 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     const variant = String(s?.layoutPlan?.variant || "content.singleCard");
     const hasImage = typeof s?.imageDataUri === "string" && s.imageDataUri.startsWith("data:image/");
 
+    const sp = s?.stylePlan || {};
+    const titlePlan = sp?.title || {};
+    const bodyPlan = sp?.body || {};
+
+    const titleFontFace = String(titlePlan?.fontFace || "Calibri");
+    const titleFontSize = Number(titlePlan?.fontSize);
+    const titleColor = hexOrDefault(titlePlan?.color, text);
+
+    const bodyFontFace = String(bodyPlan?.fontFace || "Calibri");
+    const bodyFontSize = Number(bodyPlan?.fontSize);
+    const bodyColor = hexOrDefault(bodyPlan?.color, text);
+
     // Header
     slide.addText(String(s?.title || ""), {
       x: 0.7,
       y: 0.45,
       w: 12.0,
       h: 0.6,
-      fontFace: "Calibri",
-      fontSize: 30,
-      bold: true,
-      color: pptxColor(text),
+      fontFace: titleFontFace,
+      fontSize: Number.isFinite(titleFontSize) ? Math.max(18, Math.min(48, Math.round(titleFontSize * 0.48))) : 30,
+      bold: String(titlePlan?.weight || "bold") === "bold",
+      color: pptxColor(titleColor),
     });
 
     // Accent divider
@@ -133,11 +145,62 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       y: regions.bullets.y,
       w: regions.bullets.w,
       h: regions.bullets.h,
-      fontFace: "Calibri",
-      fontSize: 18,
-      color: pptxColor(text),
+      fontFace: bodyFontFace,
+      fontSize: Number.isFinite(bodyFontSize) ? Math.max(14, Math.min(28, Math.round(bodyFontSize * 0.42))) : 18,
+      color: pptxColor(bodyColor),
       valign: "top",
     });
+
+    // Decorative shapes (AI-drawn) – rendered behind content.
+    const shapes = Array.isArray(sp?.shapes) ? sp.shapes : [];
+    for (const sh of shapes.slice(0, 12)) {
+      const kind = String(sh?.kind || "").toLowerCase();
+      if (kind === "rect") {
+        const x = Math.max(0, Math.min(1, Number(sh?.x ?? 0)));
+        const y = Math.max(0, Math.min(1, Number(sh?.y ?? 0)));
+        const w = Math.max(0.02, Math.min(1, Number(sh?.w ?? 0.2)));
+        const h = Math.max(0.02, Math.min(1, Number(sh?.h ?? 0.1)));
+        const fill = hexOrDefault(sh?.fill, accent);
+        const stroke = sh?.stroke ? hexOrDefault(sh?.stroke, accent) : undefined;
+        const sw = Number(sh?.strokeWidth ?? 0);
+
+        // Map SAFE area to slide inches (roughly match HTML safe margins).
+        const safeX = 0.85;
+        const safeY = 0.65;
+        const safeW = 13.33 - 2 * safeX;
+        const safeH = 7.5 - 2 * safeY;
+
+        slide.addShape(pptx.ShapeType.roundRect, {
+          x: safeX + x * safeW,
+          y: safeY + y * safeH,
+          w: w * safeW,
+          h: h * safeH,
+          fill: { color: pptxColor(fill) },
+          line: stroke && Number.isFinite(sw) && sw > 0 ? { color: pptxColor(stroke), width: Math.min(6, Math.max(1, Math.round(sw / 2))) } : { color: pptxColor(fill), transparency: 100 },
+        });
+      }
+      if (kind === "line") {
+        const x1 = Math.max(0, Math.min(1, Number(sh?.x1 ?? 0)));
+        const y1 = Math.max(0, Math.min(1, Number(sh?.y1 ?? 0)));
+        const x2 = Math.max(0, Math.min(1, Number(sh?.x2 ?? 0.4)));
+        const y2 = Math.max(0, Math.min(1, Number(sh?.y2 ?? 0)));
+        const stroke = hexOrDefault(sh?.stroke, accent);
+        const sw = Number(sh?.strokeWidth ?? 4);
+
+        const safeX = 0.85;
+        const safeY = 0.65;
+        const safeW = 13.33 - 2 * safeX;
+        const safeH = 7.5 - 2 * safeY;
+
+        slide.addShape(pptx.ShapeType.line, {
+          x: safeX + x1 * safeW,
+          y: safeY + y1 * safeH,
+          w: (x2 - x1) * safeW,
+          h: (y2 - y1) * safeH,
+          line: { color: pptxColor(stroke), width: Math.min(10, Math.max(1, Math.round(sw / 2))) },
+        });
+      }
+    }
 
     // Image
     if (hasImage && regions.image) {

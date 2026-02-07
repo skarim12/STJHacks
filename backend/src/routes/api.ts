@@ -8,6 +8,7 @@ import { extractTextFromPptxBuffer } from "../utils/pptxImport";
 import { outlineToAiSlides, outlineToSimpleSlides, outlineToStyledSlides, wrapDeckHtml } from "../utils/deckHtml";
 import { enrichOutlineWithImages } from "../utils/imageEnrichment";
 import { enrichOutlineWithLayouts } from "../utils/layoutEnrichment";
+import { enrichOutlineWithStyles } from "../utils/styleEnrichment";
 import { renderHtmlToPdfBuffer } from "../utils/htmlToPdf";
 
 const router = Router();
@@ -349,6 +350,11 @@ router.post("/deck-html", async (req, res) => {
     // Always-on: ask AI to choose a grid-based layout variant for each slide.
     await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
 
+    // Optional: allow AI to tweak typography and add simple shapes (still deterministic rendering).
+    if (useAi) {
+      await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
+    }
+
     // Rendering is still deterministic: layoutPlan selects from known variants.
     const slidesHtml = useAi
       ? await outlineToAiSlides(outline, anthropicJsonRequest, { concurrency: 2 })
@@ -382,6 +388,10 @@ router.post("/export-pdf", async (req, res) => {
 
     // Always-on: ask AI to choose a grid-based layout variant for each slide.
     await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+    if (useAi) {
+      await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
+    }
 
     // Build one combined HTML doc with page breaks.
     // Note: rendering uses the deterministic design system in deckHtml.ts.
@@ -428,6 +438,8 @@ router.post("/export-pptx", async (req, res) => {
       concurrency: 2,
     });
     await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+    await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
 
     const buf = await buildPptxBuffer(outline);
     const title = String(outline?.title || "presentation")
