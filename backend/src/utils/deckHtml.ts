@@ -28,6 +28,13 @@ export type Outline = {
   describe?: string;
   // Optional deck look preset
   look?: "default" | "light" | "dark" | "bold";
+  // Optional theme styling beyond colors
+  themeStyle?: {
+    background?: { kind?: "solid" | "gradient" | "vignette" };
+    panels?: { kind?: "glass" | "solid" | "none" };
+    accents?: { kind?: "divider" | "bars" | "minimal" };
+    mood?: "minimal" | "bold" | "classic";
+  };
   colorScheme?: {
     primary?: string;
     secondary?: string;
@@ -176,10 +183,17 @@ function cssVarsFromOutline(outline: Outline): {
   accent2: string;
   isLightBg: boolean;
 } {
-  const bg = String(outline?.colorScheme?.background || "#0b1220");
+  const themeStyle = outline?.themeStyle && typeof outline.themeStyle === "object" ? (outline as any).themeStyle : {};
+
+  const bg0 = String(outline?.colorScheme?.background || "#0b1220");
   const text = String(outline?.colorScheme?.text || "#ffffff");
   const accent = String(outline?.colorScheme?.accent || outline?.colorScheme?.primary || "#6ee7ff");
   const accent2 = String(outline?.colorScheme?.secondary || "#a78bfa");
+
+  // Allow CSS gradients for background (Puppeteer-safe; no runtime randomness).
+  const bg = String(themeStyle?.background || "solid") === "subtleGradient"
+    ? `radial-gradient(1200px 700px at 18% 22%, ${accent}22, transparent 62%), radial-gradient(1000px 650px at 82% 82%, ${accent2}1f, transparent 60%), ${bg0}`
+    : bg0;
 
   const hexToRgb = (h: string): { r: number; g: number; b: number } | null => {
     const m = String(h).trim().match(/^#?([0-9a-f]{6})$/i);
@@ -204,6 +218,10 @@ function cssVarsFromOutline(outline: Outline): {
 // Shared CSS: one HTML doc with multiple .slide pages.
 export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
   const { bg, text, accent, accent2, isLightBg } = cssVarsFromOutline(outline);
+  const themeBgKind = String((outline as any)?.themeStyle?.background?.kind || "solid").toLowerCase();
+  const themePanelsKind = String((outline as any)?.themeStyle?.panels?.kind || "glass").toLowerCase();
+  const themeAccentsKind = String((outline as any)?.themeStyle?.accents?.kind || "divider").toLowerCase();
+  const themeMood = String((outline as any)?.themeStyle?.mood || "classic").toLowerCase();
 
   return `<!doctype html>
 <html>
@@ -252,12 +270,25 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       --muted: ${isLightBg ? "rgba(0,0,0,.62)" : "rgba(255,255,255,.72)"};
       --faint: ${isLightBg ? "rgba(0,0,0,.42)" : "rgba(255,255,255,.48)"};
 
-      --panel: ${isLightBg ? "rgba(0,0,0,.04)" : "rgba(255,255,255,.06)"};
-      --panel-2: ${isLightBg ? "rgba(0,0,0,.07)" : "rgba(255,255,255,.10)"};
+      --panel: ${(() => {
+        const p = String((outline as any)?.themeStyle?.panels || "glass");
+        if (p === "flat") return isLightBg ? "rgba(0,0,0,.03)" : "rgba(255,255,255,.05)";
+        return isLightBg ? "rgba(0,0,0,.04)" : "rgba(255,255,255,.06)";
+      })()};
+      --panel-2: ${(() => {
+        const p = String((outline as any)?.themeStyle?.panels || "glass");
+        if (p === "flat") return isLightBg ? "rgba(0,0,0,.055)" : "rgba(255,255,255,.085)";
+        return isLightBg ? "rgba(0,0,0,.07)" : "rgba(255,255,255,.10)";
+      })()};
 
       --accent: ${accent};
       --accent-2: ${accent2};
       --stroke-color: ${isLightBg ? "rgba(0,0,0,.10)" : "rgba(255,255,255,.12)"};
+
+      --theme-bg-kind: ${escapeHtml(themeBgKind)};
+      --theme-panels-kind: ${escapeHtml(themePanelsKind)};
+      --theme-accents-kind: ${escapeHtml(themeAccentsKind)};
+      --theme-mood: ${escapeHtml(themeMood)};
     }
 
     body{ font-family: var(--font-sans); color: var(--text); }
@@ -296,6 +327,32 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       page-break-after: always;
       overflow: hidden;
       display: flex;
+    }
+
+    /* Background treatments (themeStyle.background.kind) */
+    .slide[data-look]{
+      /* nothing; data-look used elsewhere */
+    }
+
+    .slide::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      z-index:0;
+      pointer-events:none;
+      background: transparent;
+    }
+
+    .slide[data-theme-bg="gradient"]::before{
+      background: radial-gradient(1200px 700px at 20% 10%, rgba(255,255,255,.08), transparent 60%),
+                  radial-gradient(1200px 700px at 80% 90%, rgba(255,255,255,.06), transparent 55%);
+      opacity: .9;
+    }
+
+    .slide[data-theme-bg="vignette"]::before{
+      background: radial-gradient(900px 600px at 35% 30%, rgba(255,255,255,.08), transparent 60%),
+                  radial-gradient(1000px 700px at 60% 60%, transparent 40%, rgba(0,0,0,.35) 100%);
+      opacity: .95;
     }
 
     .slide[data-density="compact"]{
@@ -708,6 +765,7 @@ function renderSlideSection(
   opts: {
     safeInner: string;
     outer?: string;
+    themeBgKind?: "solid" | "gradient" | "vignette";
   },
   index: number,
   density: "normal" | "compact" | "dense",
@@ -716,8 +774,9 @@ function renderSlideSection(
 ): string {
   const left = deckTitle ? escapeHtml(clampText(stripUnsafe(deckTitle), 40)) : "";
   const dataLook = escapeHtml(String(look || "default"));
+  const themeBgKind = escapeHtml(String(((opts as any).themeBgKind || "solid")).toLowerCase());
   return `
-<section class="slide" data-density="${density}" data-look="${dataLook}">
+<section class="slide" data-density="${density}" data-look="${dataLook}" data-theme-bg="${themeBgKind}">
   ${opts.outer || ""}
   <div class="safe">${opts.safeInner}
   </div>
@@ -843,7 +902,7 @@ export function outlineToStyledSlides(outline: Outline): string {
     const decor = renderShapes((s as any)?.stylePlan);
     const safeInner = `${decor}<div class="layout-grid">${boxesHtml}</div>`;
     const look = (s as any)?.look || (outline as any)?.look || "default";
-    return renderSlideSection({ safeInner, outer: fullBleedOuter }, i, density, deckTitle, look);
+    return renderSlideSection({ safeInner, outer: fullBleedOuter, themeBgKind: themeBgKind as any }, i, density, deckTitle, look);
   };
 
   return slides
@@ -861,7 +920,7 @@ export function outlineToStyledSlides(outline: Outline): string {
         const header = renderHeader({ kicker, title, subtitle: subtitle || undefined });
         const body = `<div class="body"><div class="card"><p class="subtitle">${escapeHtml(clampText(stripUnsafe(s?.notes || ""), 200))}</p></div></div>`;
         const density: "normal" | "compact" | "dense" = "normal";
-        return renderSlideSection({ safeInner: `${header}${body}` }, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
+        return renderSlideSection({ safeInner: `${header}${body}`, themeBgKind: themeBgKind as any }, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
       }
 
       // Keep prior fallback logic for non-planned slides.
@@ -880,7 +939,7 @@ export function outlineToStyledSlides(outline: Outline): string {
     </div>
   </div>`;
 
-      return renderSlideSection({ safeInner: `${header}${body}` }, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
+      return renderSlideSection({ safeInner: `${header}${body}`, themeBgKind: themeBgKind as any }, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
     })
     .join("\n");
 }

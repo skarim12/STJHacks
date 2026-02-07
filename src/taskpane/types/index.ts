@@ -8,6 +8,13 @@ export interface ColorScheme {
   text: string;
 }
 
+export interface ThemeStyle {
+  background?: { kind: "solid" | "gradient" | "vignette" };
+  panels?: { kind: "glass" | "solid" | "none" };
+  accents?: { kind: "divider" | "bars" | "minimal" };
+  mood?: "minimal" | "bold" | "classic";
+}
+
 export interface UserPreferences {
   tone: "formal" | "casual" | "technical" | "inspirational";
   audience: string;
@@ -36,6 +43,8 @@ export interface PresentationOutline {
   describe?: string;
   /** Optional deck-level look preset (affects rendering only, not content). */
   look?: "default" | "light" | "dark" | "bold";
+  /** Optional theme styling beyond colors (background/panels/accents). */
+  themeStyle?: ThemeStyle;
 }
 
 export interface ResearchResult {

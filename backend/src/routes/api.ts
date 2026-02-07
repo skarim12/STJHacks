@@ -10,6 +10,7 @@ import { enrichOutlineWithImages } from "../utils/imageEnrichment";
 import { enrichOutlineWithLayouts } from "../utils/layoutEnrichment";
 import { enrichOutlineWithStyles } from "../utils/styleEnrichment";
 import { renderHtmlToPdfBuffer } from "../utils/htmlToPdf";
+import { enforceThemeStyle } from "../utils/themeStyle";
 
 const router = Router();
 
@@ -339,6 +340,8 @@ router.post("/deck-html", async (req, res) => {
     const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
     if (!outline) return res.status(400).json({ error: "outline required" });
 
+    enforceThemeStyle(outline);
+
     const enrichment = await enrichOutlineWithImages(outline, {
       allowExternalImages,
       allowGeneratedImages,
@@ -377,6 +380,8 @@ router.post("/export-pdf", async (req, res) => {
     const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
     const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
     if (!outline) return res.status(400).json({ error: "outline required" });
+
+    enforceThemeStyle(outline);
 
     const enrichment = await enrichOutlineWithImages(outline, {
       allowExternalImages,
@@ -428,6 +433,8 @@ router.post("/export-pptx", async (req, res) => {
     const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
     const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
     if (!outline) return res.status(400).json({ error: "outline required" });
+
+    enforceThemeStyle(outline);
 
     // Enrich for PPTX too so images/layout plans exist.
     await enrichOutlineWithImages(outline, {

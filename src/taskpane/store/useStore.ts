@@ -300,10 +300,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   generateThemeFromDescribe: async (describe: string) => {
     try {
-      const theme = await get().themeService.generateThemeFromDescribe(describe);
-      set({ selectedTheme: theme });
+      const { colorScheme, themeStyle } = await get().themeService.generateThemeFromDescribe(describe);
+      set({ selectedTheme: colorScheme });
       const current = get().outline;
-      if (current) set({ outline: { ...current, colorScheme: theme }, slides: current.slides });
+      if (current) set({ outline: { ...current, colorScheme, themeStyle }, slides: current.slides });
     } catch (err: any) {
       set({ error: err?.message || "Failed to generate theme" });
     }

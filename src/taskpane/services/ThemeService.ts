@@ -45,11 +45,11 @@ export class ThemeService {
     }
   }
 
-  async generateThemeFromDescribe(describe: string): Promise<ColorScheme> {
+  async generateThemeFromDescribe(describe: string): Promise<{ colorScheme: ColorScheme; themeStyle: any }> {
     try {
       return await this.aiService.generateThemeFromDescribe(describe);
     } catch {
-      return this.getDefaultScheme();
+      return { colorScheme: this.getDefaultScheme(), themeStyle: {} };
     }
   }
 

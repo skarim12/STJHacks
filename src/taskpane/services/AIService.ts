@@ -93,7 +93,7 @@ Return STRICT JSON only:
     }
   }
 
-  async generateThemeFromDescribe(describe: string): Promise<ColorScheme> {
+  async generateThemeFromDescribe(describe: string): Promise<{ colorScheme: ColorScheme; themeStyle: any }> {
     const d = String(describe || "").trim();
     if (!d) throw new Error("describe required");
 
@@ -105,22 +105,35 @@ ${d}
 
 Return STRICT JSON only:
 {
-  "primary": "#RRGGBB",
-  "secondary": "#RRGGBB",
-  "accent": "#RRGGBB",
-  "background": "#RRGGBB",
-  "text": "#RRGGBB"
+  "colorScheme": {
+    "primary": "#RRGGBB",
+    "secondary": "#RRGGBB",
+    "accent": "#RRGGBB",
+    "background": "#RRGGBB",
+    "text": "#RRGGBB"
+  },
+  "themeStyle": {
+    "background": { "kind": "solid|gradient|vignette" },
+    "panels": { "kind": "glass|solid|none" },
+    "accents": { "kind": "divider|bars|minimal" },
+    "mood": "minimal|bold|classic"
+  }
 }
 
 Rules:
 - background/text MUST have strong contrast.
 - Default to a DARK background theme unless the description explicitly requests a light theme.
-- prefer safe, professional colors (no neon unless asked).
+- Prefer safe, professional colors (no neon unless asked).
+- If mood is minimal: panels should be none or very subtle.
+- If mood is bold: use bars accents and vignette or gradient background.
 `.trim();
 
     try {
       const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
-      return response.data as ColorScheme;
+      const data = response.data as any;
+      if (data?.colorScheme) return { colorScheme: data.colorScheme as ColorScheme, themeStyle: data.themeStyle || {} };
+      // Back-compat if model returns just a color scheme
+      return { colorScheme: data as ColorScheme, themeStyle: {} };
     } catch (err: any) {
       throw new Error(extractApiError(err));
     }

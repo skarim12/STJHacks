@@ -1,4 +1,5 @@
 import type { Outline } from "./deckHtml";
+import { getVariantByName } from "./layoutVariants";
 
 export type TextStylePlan = {
   fontFace?: "Calibri" | "Segoe UI" | "Arial";
@@ -158,6 +159,88 @@ function sanitizeSlideStyle(input: any): SlideStylePlan | undefined {
   return out;
 }
 
+type Rect01 = { x: number; y: number; w: number; h: number };
+
+function rectsIntersect(a: Rect01, b: Rect01): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function inflateRect(r: Rect01, pad: number): Rect01 {
+  const p = Math.max(0, Math.min(0.25, pad));
+  const x = Math.max(0, r.x - p);
+  const y = Math.max(0, r.y - p);
+  const w = Math.min(1 - x, r.w + 2 * p);
+  const h = Math.min(1 - y, r.h + 2 * p);
+  return { x, y, w, h };
+}
+
+function gridRectTo01(rect: { colStart: number; colSpan: number; rowStart: number; rowSpan: number }): Rect01 {
+  // Variant grid is 12 cols x 8 rows inside safe area.
+  const cs = Math.max(1, Math.min(12, Number(rect.colStart || 1)));
+  const cspan = Math.max(1, Math.min(12, Number(rect.colSpan || 12)));
+  const rs = Math.max(1, Math.min(8, Number(rect.rowStart || 1)));
+  const rspan = Math.max(1, Math.min(8, Number(rect.rowSpan || 8)));
+
+  const x = (cs - 1) / 12;
+  const w = cspan / 12;
+  const y = (rs - 1) / 8;
+  const h = rspan / 8;
+
+  return { x, y, w, h };
+}
+
+function exclusionZonesForSlide(slide: any): Rect01[] {
+  const variantName = String(slide?.layoutPlan?.variant || "").trim();
+  const v = variantName ? getVariantByName(variantName) : null;
+  if (!v) return [];
+
+  // Exclude any region with text-heavy content.
+  const excludedKinds = new Set(["header", "bulletsCard", "quoteCard", "comparisonLeft", "comparisonRight", "statementCard"]);
+
+  const zones = v.boxes
+    .filter((b) => excludedKinds.has(b.kind as any))
+    .map((b) => inflateRect(gridRectTo01(b.rect), 0.02));
+
+  return zones;
+}
+
+function shapeBounds01(sh: any): Rect01 | null {
+  const kind = String(sh?.kind || "").toLowerCase();
+  if (kind === "rect") {
+    const x = clamp01(sh?.x);
+    const y = clamp01(sh?.y);
+    const w = clampNum(sh?.w, 0.02, 1, 0.2);
+    const h = clampNum(sh?.h, 0.02, 1, 0.1);
+    return { x, y, w, h };
+  }
+  if (kind === "line") {
+    const x1 = clamp01(sh?.x1);
+    const y1 = clamp01(sh?.y1);
+    const x2 = clamp01(sh?.x2);
+    const y2 = clamp01(sh?.y2);
+    const x = Math.min(x1, x2);
+    const y = Math.min(y1, y2);
+    const w = Math.max(0.002, Math.abs(x2 - x1));
+    const h = Math.max(0.002, Math.abs(y2 - y1));
+    return inflateRect({ x, y, w, h }, 0.01);
+  }
+  return null;
+}
+
+function filterShapesAgainstZones(shapes: ShapePlan[] | undefined, zones: Rect01[]): ShapePlan[] | undefined {
+  if (!shapes?.length || !zones.length) return shapes;
+
+  const kept: ShapePlan[] = [];
+  for (const sh of shapes) {
+    const b = shapeBounds01(sh);
+    if (!b) continue;
+    const hit = zones.some((z) => rectsIntersect(b, z));
+    if (!hit) kept.push(sh);
+  }
+
+  return kept.length ? kept : undefined;
+}
+
 function simpleHash(s: string): string {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -240,6 +323,8 @@ ${JSON.stringify(payload, null, 2)}
     if (!st) continue;
 
     // Persist stylePlan on slide; keep deterministic renderer.
+    const zones = exclusionZonesForSlide(slides[idx]);
+    if (st.shapes) st.shapes = filterShapesAgainstZones(st.shapes, zones);
     slides[idx].stylePlan = st;
 
     // Allow stylePlan.look to override slide look.
