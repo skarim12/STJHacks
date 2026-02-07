@@ -5,7 +5,8 @@ const CopyWebpackPlugin = require("copy-webpack-plugin");
 /** @type {import('webpack').Configuration} */
 module.exports = {
   entry: {
-    taskpane: "./src/taskpane/index.tsx"
+    taskpane: "./src/taskpane/index.tsx",
+    commands: "./src/commands/commands.ts"
   },
   output: {
     clean: true,
@@ -26,6 +27,13 @@ module.exports = {
       {
         test: /\.css$/,
         use: ["style-loader", "css-loader"]
+      },
+      {
+        test: /\.(png|jpg|jpeg|gif|ico)$/,
+        type: "asset/resource",
+        generator: {
+          filename: "assets/[name][ext]"
+        }
       }
     ]
   },
@@ -35,10 +43,15 @@ module.exports = {
       template: "./src/taskpane/taskpane.html",
       chunks: ["taskpane"]
     }),
+    new HtmlWebpackPlugin({
+      filename: "commands.html",
+      template: "./src/taskpane/taskpane.html",
+      chunks: ["commands"]
+    }),
     new CopyWebpackPlugin({
       patterns: [
-        { from: "manifest.xml", to: "[name][ext]" },
-        { from: "assets", to: "assets", noErrorOnMissing: true }
+        { from: "src/manifest.xml", to: "manifest.xml" },
+        { from: "assets", to: "assets" }
       ]
     })
   ],

@@ -2,16 +2,18 @@
 <OfficeApp
   xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
 
-  <Id>c8fda58d-b924-4c2b-b71d-111111111111</Id>
+  <Id>c8fda58d-b924-4c2b-b71d-222222222222</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>Your Company</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="PowerPoint AI Assistant" />
   <Description DefaultValue="Transform rough ideas into polished presentations using AI." />
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png" />
-  <SupportUrl DefaultValue="https://your-support-url.example" />
+  <SupportUrl DefaultValue="https://your-support.example" />
 
   <Hosts>
     <Host Name="Presentation" />
@@ -22,4 +24,55 @@
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="ov:VersionOverrides" Version="1.0">
+    <Hosts>
+      <Host xsi:type="Presentation">
+        <DesktopFormFactor>
+          <FunctionFile resid="residCommandsUrl" />
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="PptAiGroup" label="AI Assistant">
+                <Control xsi:type="Button" id="PptAiOpenTaskpane">
+                  <Label resid="residPptAiButtonLabel" />
+                  <Supertip>
+                    <Title resid="residPptAiButtonLabel" />
+                    <Description resid="residPptAiButtonDesc" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="icon16" />
+                    <bt:Image size="32" resid="icon32" />
+                    <bt:Image size="64" resid="icon64" />
+                    <bt:Image size="128" resid="icon128" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="residTaskpaneUrl" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <Resources>
+      <bt:Images>
+        <bt:Image id="icon16" DefaultValue="https://localhost:3000/assets/icon-16.png" />
+        <bt:Image id="icon32" DefaultValue="https://localhost:3000/assets/icon-32.png" />
+        <bt:Image id="icon64" DefaultValue="https://localhost:3000/assets/icon-64.png" />
+        <bt:Image id="icon128" DefaultValue="https://localhost:3000/assets/icon-128.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="residTaskpaneUrl" DefaultValue="https://localhost:3000/taskpane.html" />
+        <bt:Url id="residCommandsUrl" DefaultValue="https://localhost:3000/commands.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="residPptAiButtonLabel" DefaultValue="AI Assistant" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="residPptAiButtonDesc" DefaultValue="Open the AI assistant task pane." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
 </OfficeApp>

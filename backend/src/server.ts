@@ -2,15 +2,10 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
-import NodeCache from "node-cache";
 import { config } from "./config";
-import {
-  callAnthropicForSlides,
-  callAnthropicForResearch
-} from "./anthropicClient";
+import aiRoutes from "./aiRoutes";
 
 const app = express();
-const cache = new NodeCache({ stdTTL: config.cacheTtlSeconds });
 
 app.use(express.json());
 app.use(
@@ -38,55 +33,7 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-app.post("/api/generateSlides", async (req, res) => {
-  try {
-    const roughIdea = String(req.body?.roughIdea || "").trim();
-    if (!roughIdea) {
-      return res.status(400).json({ error: "Missing 'roughIdea'." });
-    }
-
-    const cacheKey = `slides:${roughIdea}`;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.json(cached);
-    }
-
-    const result = await callAnthropicForSlides(roughIdea);
-    cache.set(cacheKey, result);
-    res.json(result);
-  } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error(err);
-    res
-      .status(500)
-      .json({ error: "Failed to generate slides", details: err?.message || "" });
-  }
-});
-
-app.post("/api/research", async (req, res) => {
-  try {
-    const topic = String(req.body?.topic || "").trim();
-    if (!topic) {
-      return res.status(400).json({ error: "Missing 'topic'." });
-    }
-
-    const cacheKey = `research:${topic}`;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.json(cached);
-    }
-
-    const result = await callAnthropicForResearch(topic);
-    cache.set(cacheKey, result);
-    res.json(result);
-  } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error(err);
-    res
-      .status(500)
-      .json({ error: "Failed to perform research", details: err?.message || "" });
-  }
-});
+app.use("/api", aiRoutes);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: any) => {
   // eslint-disable-next-line no-console

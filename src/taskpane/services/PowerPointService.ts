@@ -66,13 +66,12 @@ export class PowerPointService {
     textBox.height = 350;
 
     const tf = textBox.textFrame;
-    let isFirst = true;
+    let first = true;
 
-    points.forEach((point) => {
-      const toInsert = (isFirst ? "" : "\n") + point;
-      const range = tf.textRange;
-      range.insertText(toInsert, PowerPoint.InsertLocation.end);
-      isFirst = false;
+    points.forEach((p) => {
+      const toInsert = (first ? "" : "\n") + p;
+      tf.textRange.insertText(toInsert, PowerPoint.InsertLocation.end);
+      first = false;
     });
 
     const range = tf.textRange;
@@ -98,17 +97,16 @@ export class PowerPointService {
     rightBox.height = 350;
 
     const half = Math.ceil(points.length / 2);
-    const leftPoints = points.slice(0, half);
-    const rightPoints = points.slice(half);
+    const left = points.slice(0, half);
+    const right = points.slice(half);
 
-    const setBullets = (textBox: PowerPoint.Shape, pts: string[]) => {
-      const tf = textBox.textFrame;
-      let isFirst = true;
+    const setBullets = (box: PowerPoint.Shape, pts: string[]) => {
+      const tf = box.textFrame;
+      let first = true;
       pts.forEach((p) => {
-        const toInsert = (isFirst ? "" : "\n") + p;
-        const range = tf.textRange;
-        range.insertText(toInsert, PowerPoint.InsertLocation.end);
-        isFirst = false;
+        const toInsert = (first ? "" : "\n") + p;
+        tf.textRange.insertText(toInsert, PowerPoint.InsertLocation.end);
+        first = false;
       });
       const range = tf.textRange;
       range.paragraphFormat.bullet.visible = true;
@@ -116,8 +114,8 @@ export class PowerPointService {
       range.font.size = 16;
     };
 
-    setBullets(leftBox, leftPoints);
-    setBullets(rightBox, rightPoints);
+    setBullets(leftBox, left);
+    setBullets(rightBox, right);
   }
 
   private async addImagePlaceholder(shapes: PowerPoint.ShapeCollection): Promise<void> {
@@ -158,10 +156,10 @@ export class PowerPointService {
       await context.sync();
 
       let allNotes = "";
-      slides.items.forEach((slide, idx) => {
-        const notesRange = slide.notesPage.notesTextFrame.textRange;
-        notesRange.load("text");
-        allNotes += `Slide ${idx + 1}:\n${notesRange.text}\n\n`;
+      slides.items.forEach((slide, i) => {
+        const notes = slide.notesPage.notesTextFrame.textRange;
+        notes.load("text");
+        allNotes += `Slide ${i + 1}:\n${notes.text}\n\n`;
       });
       await context.sync();
       return allNotes;

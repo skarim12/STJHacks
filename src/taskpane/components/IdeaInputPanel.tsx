@@ -5,7 +5,8 @@ import {
   Stack,
   ProgressIndicator,
   Dropdown,
-  IDropdownOption
+  IDropdownOption,
+  Checkbox
 } from "@fluentui/react";
 import { useStore } from "../store/useStore";
 import type { UserPreferences } from "../types";
@@ -14,30 +15,13 @@ export const IdeaInputPanel: React.FC = () => {
   const [idea, setIdea] = useState("");
   const [prefs, setPrefs] = useState<UserPreferences>({
     tone: "formal",
-    audience: "General business audience",
+    audience: "General audience",
     slideCount: "medium",
     includeResearch: false
   });
 
-  const { aiService, powerPointService, generateFromIdea, generating, outline } =
+  const { generateFromIdea, generating, powerPointService, outline, selectedTheme } =
     useStore();
-
-  const handleGenerate = async () => {
-    if (!idea.trim()) return;
-    try {
-      await generateFromIdea(idea, prefs);
-      if (!outline) return;
-      for (const slide of outline.slides) {
-        await powerPointService.createSlideFromStructure(slide);
-      }
-      await powerPointService.applyColorTheme(outline.colorScheme);
-      // eslint-disable-next-line no-console
-      console.log("Presentation created successfully");
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error("Error generating presentation:", error);
-    }
-  };
 
   const toneOptions: IDropdownOption[] = [
     { key: "formal", text: "Formal" },
@@ -47,17 +31,27 @@ export const IdeaInputPanel: React.FC = () => {
   ];
 
   const slideCountOptions: IDropdownOption[] = [
-    { key: "short", text: "Short (5-8 slides)" },
-    { key: "medium", text: "Medium (9-15 slides)" },
+    { key: "short", text: "Short (5–8 slides)" },
+    { key: "medium", text: "Medium (9–15 slides)" },
     { key: "long", text: "Long (16+ slides)" }
   ];
 
+  const handleGenerate = async () => {
+    if (!idea.trim()) return;
+    await generateFromIdea(idea, prefs);
+    if (!outline) return;
+    for (const slide of outline.slides) {
+      await powerPointService.createSlideFromStructure(slide);
+    }
+    await powerPointService.applyColorTheme(selectedTheme);
+  };
+
   return (
-    <Stack tokens={{ childrenGap: 10 }} styles={{ root: { padding: 16 } }}>
+    <Stack tokens={{ childrenGap: 8 }}>
       <TextField
         label="Describe your presentation idea"
         multiline
-        rows={5}
+        rows={4}
         placeholder="E.g., A quarterly business review showing our sales growth, key challenges, and Q2 strategy..."
         value={idea}
         onChange={(_, v) => setIdea(v || "")}
@@ -91,14 +85,20 @@ export const IdeaInputPanel: React.FC = () => {
         onChange={(_, v) => setPrefs((p) => ({ ...p, audience: v || "" }))}
       />
 
-      <Stack horizontal tokens={{ childrenGap: 8 }} verticalAlign="center">
-        <PrimaryButton
-          text="Generate Presentation"
-          onClick={handleGenerate}
-          disabled={!idea || generating}
-          iconProps={{ iconName: "Lightbulb" }}
-        />
-      </Stack>
+      <Checkbox
+        label="Include additional research"
+        checked={prefs.includeResearch}
+        onChange={(_, checked) =>
+          setPrefs((p) => ({ ...p, includeResearch: !!checked }))
+        }
+      />
+
+      <PrimaryButton
+        text="Generate Presentation"
+        onClick={handleGenerate}
+        disabled={!idea || generating}
+        iconProps={{ iconName: "Lightbulb" }}
+      />
 
       {generating && (
         <ProgressIndicator
