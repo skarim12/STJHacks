@@ -24,12 +24,14 @@ def main():
     backend = ROOT / "backend"
 
     # Ensure deps are installed (both root and backend)
-    run("npm install", ROOT)
-    run("npm install", backend)
+    npm = "\"C:/Program Files/nodejs/npm.cmd\""
+
+    run(f"{npm} install", ROOT)
+    run(f"{npm} install", backend)
 
     # Start both processes
-    p_backend = popen("npm run dev", backend, "backend")
-    p_frontend = popen("npm run start", ROOT, "frontend")
+    p_backend = popen(f"{npm} run dev", backend, "backend")
+    p_frontend = popen(f"{npm} run start", ROOT, "frontend")
 
     procs = [p_backend, p_frontend]
 

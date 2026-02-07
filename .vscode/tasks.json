@@ -30,7 +30,7 @@
     {
       "label": "Frontend: webpack dev server",
       "type": "shell",
-      "command": "npm",
+      "command": "C:/Program Files/nodejs/npm.cmd",
       "args": ["run", "start"],
       "options": { "cwd": "${workspaceFolder}" },
       "isBackground": true,
@@ -42,7 +42,7 @@
     {
       "label": "Backend: dev",
       "type": "shell",
-      "command": "npm",
+      "command": "C:/Program Files/nodejs/npm.cmd",
       "args": ["run", "dev"],
       "options": { "cwd": "${workspaceFolder}/backend" },
       "isBackground": true,
