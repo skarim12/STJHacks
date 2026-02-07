@@ -12,7 +12,8 @@ import { buildOutlinePrompt } from "../utils/promptBuilder";
 
 const API_BASE =
   (typeof window !== "undefined" && (window as any).__BACKEND_URL__) ||
-  "http://localhost:4000/api";
+  // Avoid mixed-content failures when the taskpane is served over https.
+  `${typeof window !== "undefined" && window.location?.protocol === "https:" ? "https" : "http"}://localhost:4000/api`;
 
 function extractApiError(err: unknown): string {
   // Axios errors from backend often include { error, details }
