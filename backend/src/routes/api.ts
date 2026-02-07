@@ -6,8 +6,7 @@ import { buildPptxBuffer } from "../utils/pptx";
 import multer from "multer";
 import { extractTextFromPptxBuffer } from "../utils/pptxImport";
 import { outlineToAiSlides, outlineToSimpleSlides, outlineToStyledSlides, wrapDeckHtml } from "../utils/deckHtml";
-import { buildDefaultImageQuery, fetchSlideImageFromWikimedia } from "../utils/externalImages";
-import { generateSlideImageOpenAI } from "../utils/imageGeneration";
+import { enrichOutlineWithImages } from "../utils/imageEnrichment";
 import { renderHtmlToPdfBuffer } from "../utils/htmlToPdf";
 
 const router = Router();
@@ -337,64 +336,12 @@ router.post("/deck-html", async (req, res) => {
     const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
     if (!outline) return res.status(400).json({ error: "outline required" });
 
-    if ((allowExternalImages || allowGeneratedImages) && Array.isArray(outline?.slides)) {
-      // Deterministic rule: fetch up to N slide images max per deck.
-      const maxDeckImages = 8;
-      let used = 0;
-
-      // Concurrency-limited fetch
-      const slides = outline.slides as any[];
-      let idx = 0;
-      const workers = new Array(2).fill(0).map(async () => {
-        while (idx < slides.length && used < maxDeckImages) {
-          const i = idx++;
-          const s = slides[i];
-          if (!s || s.slideType === "title") continue;
-          if (s.imageDataUri) continue;
-
-          // Prefer images on image slides; otherwise every other slide.
-          const normalizedType = String(s.slideType || "").toLowerCase();
-          const wantsImage = normalizedType === "image" || normalizedType === "imageplaceholder" || (i % 2 === 1);
-          if (!wantsImage) continue;
-
-          const query = buildDefaultImageQuery({
-            deckTitle: outline?.title,
-            slideTitle: s?.title,
-            bullets: Array.isArray(s?.content) ? s.content : [],
-          });
-
-          if (allowExternalImages) {
-            try {
-              const img = await fetchSlideImageFromWikimedia({ query });
-              if (img?.dataUri) {
-                s.imageDataUri = img.dataUri;
-                s.imageCredit = img.credit;
-                s.imageSourcePage = img.sourcePage;
-                used++;
-                continue;
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          if (allowGeneratedImages) {
-            try {
-              const gen = await generateSlideImageOpenAI({ prompt: query, style: "illustration" });
-              if (gen?.dataUri) {
-                s.imageDataUri = gen.dataUri;
-                s.imageCredit = "AI-generated (OpenAI)";
-                s.imageSourcePage = "";
-                used++;
-              }
-            } catch {
-              // ignore
-            }
-          }
-        }
-      });
-      await Promise.all(workers);
-    }
+    const enrichment = await enrichOutlineWithImages(outline, {
+      allowExternalImages,
+      allowGeneratedImages,
+      maxDeckImages: 10,
+      concurrency: 2,
+    });
 
     // Deterministic slide system: AI is allowed to assist content elsewhere,
     // but slide HTML rendering is guarded and stable.
@@ -403,7 +350,7 @@ router.post("/deck-html", async (req, res) => {
       : outlineToStyledSlides(outline);
 
     const html = wrapDeckHtml(slidesHtml, outline);
-    res.json({ html });
+    res.json({ html, enrichment });
   } catch (err: any) {
     // eslint-disable-next-line no-console
     console.error(err);
@@ -419,59 +366,12 @@ router.post("/export-pdf", async (req, res) => {
     const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
     if (!outline) return res.status(400).json({ error: "outline required" });
 
-    if ((allowExternalImages || allowGeneratedImages) && Array.isArray(outline?.slides)) {
-      const maxDeckImages = 8;
-      let used = 0;
-      const slides = outline.slides as any[];
-      let idx = 0;
-      const workers = new Array(2).fill(0).map(async () => {
-        while (idx < slides.length && used < maxDeckImages) {
-          const i = idx++;
-          const s = slides[i];
-          if (!s || s.slideType === "title") continue;
-          if (s.imageDataUri) continue;
-          const normalizedType = String(s.slideType || "").toLowerCase();
-          const wantsImage = normalizedType === "image" || normalizedType === "imageplaceholder" || (i % 2 === 1);
-          if (!wantsImage) continue;
-
-          const query = buildDefaultImageQuery({
-            deckTitle: outline?.title,
-            slideTitle: s?.title,
-            bullets: Array.isArray(s?.content) ? s.content : [],
-          });
-
-          if (allowExternalImages) {
-            try {
-              const img = await fetchSlideImageFromWikimedia({ query });
-              if (img?.dataUri) {
-                s.imageDataUri = img.dataUri;
-                s.imageCredit = img.credit;
-                s.imageSourcePage = img.sourcePage;
-                used++;
-                continue;
-              }
-            } catch {
-              // ignore
-            }
-          }
-
-          if (allowGeneratedImages) {
-            try {
-              const gen = await generateSlideImageOpenAI({ prompt: query, style: "illustration" });
-              if (gen?.dataUri) {
-                s.imageDataUri = gen.dataUri;
-                s.imageCredit = "AI-generated (OpenAI)";
-                s.imageSourcePage = "";
-                used++;
-              }
-            } catch {
-              // ignore
-            }
-          }
-        }
-      });
-      await Promise.all(workers);
-    }
+    const enrichment = await enrichOutlineWithImages(outline, {
+      allowExternalImages,
+      allowGeneratedImages,
+      maxDeckImages: 10,
+      concurrency: 2,
+    });
 
     // Build one combined HTML doc with page breaks.
     // Note: rendering uses the deterministic design system in deckHtml.ts.
