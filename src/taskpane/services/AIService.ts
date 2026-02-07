@@ -266,6 +266,30 @@ Return STRICT JSON only: { "notes": "..." }
     }
   }
 
+  async finalizeOutline(
+    outline: PresentationOutline,
+    useAi: boolean = true,
+    allowExternalImages: boolean = false,
+    allowGeneratedImages: boolean = false,
+    imageStyle: "photo" | "illustration" = "photo"
+  ): Promise<{ outline: PresentationOutline; enrichment?: any }> {
+    try {
+      const response = await axios.post(`${API_BASE}/finalize-outline`, {
+        outline,
+        useAi,
+        allowExternalImages,
+        allowGeneratedImages,
+        imageStyle,
+      });
+      return {
+        outline: (response.data as any)?.outline as PresentationOutline,
+        enrichment: (response.data as any)?.enrichment,
+      };
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
+  }
+
   async exportPptx(
     outline: PresentationOutline,
     allowExternalImages: boolean = false,

@@ -331,32 +331,52 @@ Return STRICT JSON:
  * Export a generated outline to a downloadable .pptx.
  * POST body: { outline: <PresentationOutline JSON> }
  */
+async function finalizeOutlineForRender(reqBody: any) {
+  const outline = reqBody?.outline;
+  const useAi = reqBody?.useAi !== false; // default true
+  const allowExternalImages = reqBody?.allowExternalImages === true;
+  const allowGeneratedImages = reqBody?.allowGeneratedImages === true;
+  const imageStyle = ((reqBody?.imageStyle || "photo") as "photo" | "illustration");
+
+  if (!outline) throw new Error("outline required");
+
+  enforceThemeStyle(outline);
+
+  const enrichment = await enrichOutlineWithImages(outline, {
+    allowExternalImages,
+    allowGeneratedImages,
+    imageStyle,
+    maxDeckImages: 10,
+    concurrency: 2,
+  });
+
+  // Always-on: choose a grid-based layout variant for each slide.
+  await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+  // Optional: tweak typography and add simple shapes (still deterministic rendering).
+  if (useAi) {
+    await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
+  }
+
+  return { outline, enrichment, useAi };
+}
+
+// Finalize an outline (images + layout plans + style plans) WITHOUT rendering HTML.
+// This supports the "Generate presentation" flow so the user immediately has a finished deck.
+router.post("/finalize-outline", async (req, res) => {
+  try {
+    const { outline, enrichment } = await finalizeOutlineForRender(req.body);
+    res.json({ outline, enrichment });
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to finalize outline", details: err.message });
+  }
+});
+
 router.post("/deck-html", async (req, res) => {
   try {
-    const outline = (req.body as any)?.outline;
-    const useAi = (req.body as any)?.useAi !== false; // default true
-    const allowExternalImages = (req.body as any)?.allowExternalImages === true;
-    const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
-    const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
-    if (!outline) return res.status(400).json({ error: "outline required" });
-
-    enforceThemeStyle(outline);
-
-    const enrichment = await enrichOutlineWithImages(outline, {
-      allowExternalImages,
-      allowGeneratedImages,
-      imageStyle,
-      maxDeckImages: 10,
-      concurrency: 2,
-    });
-
-    // Always-on: ask AI to choose a grid-based layout variant for each slide.
-    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
-
-    // Optional: allow AI to tweak typography and add simple shapes (still deterministic rendering).
-    if (useAi) {
-      await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
-    }
+    const { outline, enrichment, useAi } = await finalizeOutlineForRender(req.body);
 
     // Rendering is still deterministic: layoutPlan selects from known variants.
     const slidesHtml = useAi

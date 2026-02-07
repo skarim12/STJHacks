@@ -140,7 +140,19 @@ export const useStore = create<AppState>((set, get) => ({
       const outline = await get().aiService.generatePresentationOutline(idea, prefs);
       const deckDescribe = get().deckDescribe?.trim();
       const withDescribe = deckDescribe ? { ...outline, describe: deckDescribe } : outline;
-      set({ outline: withDescribe, slides: withDescribe.slides });
+
+      // Immediately "finish" the deck after generation so previews/edits operate on the
+      // same finalized layout+style+image-enriched outline.
+      const finalized = await get().aiService.finalizeOutline(
+        withDescribe,
+        true,
+        get().externalImagesEnabled,
+        get().generatedImagesEnabled,
+        "photo"
+      );
+
+      const next = finalized?.outline || withDescribe;
+      set({ outline: next, slides: next.slides });
     } catch (err: any) {
       set({ error: err?.message || "Failed to generate outline" });
     } finally {
