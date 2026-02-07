@@ -29,17 +29,29 @@ async function anthropicJsonRequest(
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
-  const response = await axios.post(
-    ANTHROPIC_URL,
-    {
-      model: config.defaultModel,
-      max_tokens: maxTokens ?? config.maxTokens,
-      temperature: 0.5,
-      system,
-      messages: [{ role: "user", content: user }],
-    },
-    { headers: headers() }
-  );
+  let response;
+  try {
+    response = await axios.post(
+      ANTHROPIC_URL,
+      {
+        model: config.defaultModel,
+        max_tokens: maxTokens ?? config.maxTokens,
+        temperature: 0.5,
+        system,
+        messages: [{ role: "user", content: user }],
+      },
+      { headers: headers() }
+    );
+  } catch (err: any) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      const data = err.response?.data;
+      throw new Error(
+        `Anthropic request failed (status ${status}). Response: ${JSON.stringify(data)}`
+      );
+    }
+    throw err;
+  }
 
   const content = (response.data as any)?.content;
   if (!Array.isArray(content) || content.length === 0) {
