@@ -76,7 +76,16 @@ def main():
         run(f"{npm} run certs:install", ROOT)
 
     # Start both processes
-    p_backend = popen(f"{npm} run dev", backend, "backend")
+    # NOTE: UI is served over https://localhost:3000. To avoid mixed-content/network errors,
+    # we run the backend over HTTPS as well (same Office dev certs).
+    backend_env = os.environ.copy()
+    backend_env["USE_HTTPS"] = backend_env.get("USE_HTTPS", "true")
+
+    print("\nDev URLs:")
+    print("  UI:      https://localhost:3000/local.html")
+    print("  Backend: https://localhost:4000/health")
+
+    p_backend = subprocess.Popen(f"{npm} run dev", cwd=str(backend), shell=True, env=backend_env)
     p_frontend = popen(f"{npm} run start", ROOT, "frontend")
 
     procs = [p_backend, p_frontend]
