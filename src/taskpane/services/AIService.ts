@@ -245,6 +245,15 @@ Return STRICT JSON only: { "notes": "..." }
     }
   }
 
+  async getDeckHtml(outline: PresentationOutline, useAi: boolean = true): Promise<string> {
+    try {
+      const response = await axios.post(`${API_BASE}/deck-html`, { outline, useAi });
+      return String((response.data as any)?.html || "");
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
+  }
+
   async importPptx(file: File): Promise<{ extractedText: string; outline: PresentationOutline }> {
     const form = new FormData();
     form.append("file", file);

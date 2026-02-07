@@ -5,6 +5,7 @@ import { IdeaInputPanel } from "./components/IdeaInputPanel";
 import { SlidePreview } from "./components/SlidePreview";
 import { ColorThemeSelector } from "./components/ColorThemeSelector";
 import { TemplateGallery } from "./components/TemplateGallery";
+import { DeckPreviewPanel } from "./components/DeckPreviewPanel";
 
 // Lazy-loaded components (not always needed on initial load)
 const ResearchPanel = lazy(() => import("./components/ResearchPanel"));
@@ -29,6 +30,7 @@ const App: React.FC = () => {
 
       <IdeaInputPanel />
       <SlidePreview slides={slides} onEdit={(i) => console.log("Edit slide", i)} />
+      <DeckPreviewPanel />
       <TemplateGallery />
       <ColorThemeSelector />
 

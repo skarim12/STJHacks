@@ -5,7 +5,7 @@ import { config } from "../config/config";
 import { buildPptxBuffer } from "../utils/pptx";
 import multer from "multer";
 import { extractTextFromPptxBuffer } from "../utils/pptxImport";
-import { outlineToAiSlides, outlineToSimpleSlides, wrapDeckHtml } from "../utils/deckHtml";
+import { outlineToAiSlides, outlineToSimpleSlides, outlineToStyledSlides, wrapDeckHtml } from "../utils/deckHtml";
 import { renderHtmlToPdfBuffer } from "../utils/htmlToPdf";
 
 const router = Router();
@@ -278,6 +278,27 @@ Return STRICT JSON:
  * Export a generated outline to a downloadable .pptx.
  * POST body: { outline: <PresentationOutline JSON> }
  */
+router.post("/deck-html", async (req, res) => {
+  try {
+    const outline = (req.body as any)?.outline;
+    const useAi = (req.body as any)?.useAi !== false; // default true
+    if (!outline) return res.status(400).json({ error: "outline required" });
+
+    // Deterministic slide system: AI is allowed to assist content elsewhere,
+    // but slide HTML rendering is guarded and stable.
+    const slidesHtml = useAi
+      ? await outlineToAiSlides(outline, anthropicJsonRequest, { concurrency: 2 })
+      : outlineToSimpleSlides(outline);
+
+    const html = wrapDeckHtml(slidesHtml, outline);
+    res.json({ html });
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to generate deck HTML", details: err.message });
+  }
+});
+
 router.post("/export-pdf", async (req, res) => {
   try {
     const outline = (req.body as any)?.outline;
@@ -285,11 +306,12 @@ router.post("/export-pdf", async (req, res) => {
     if (!outline) return res.status(400).json({ error: "outline required" });
 
     // Build one combined HTML doc with page breaks.
+    // Note: rendering uses the deterministic design system in deckHtml.ts.
     let slidesHtml: string;
     if (useAi) {
       slidesHtml = await outlineToAiSlides(outline, anthropicJsonRequest, { concurrency: 2 });
     } else {
-      slidesHtml = outlineToSimpleSlides(outline);
+      slidesHtml = outlineToStyledSlides(outline);
     }
 
     const html = wrapDeckHtml(slidesHtml, outline);
