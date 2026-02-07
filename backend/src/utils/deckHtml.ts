@@ -661,7 +661,7 @@ function styleAttrFromPlan(plan: any, key: "title" | "subtitle" | "kicker" | "bo
   return css.length ? ` style="${css.join(";")}"` : "";
 }
 
-function renderShapes(plan: any): string {
+function renderShapes(plan: any, exclusions?: Array<{ x: number; y: number; w: number; h: number }>): string {
   const shapes = plan && typeof plan === "object" ? (plan as any).shapes : null;
   if (!Array.isArray(shapes) || !shapes.length) return "";
 
@@ -722,8 +722,38 @@ function renderShapes(plan: any): string {
     return `<div class="shape" style="${styles.join(";")}"></div>`;
   };
 
-  const html = shapes
+  const overlaps = (a: any, b: any): number => {
+    const ax2 = a.x + a.w;
+    const ay2 = a.y + a.h;
+    const bx2 = b.x + b.w;
+    const by2 = b.y + b.h;
+    const ix = Math.max(0, Math.min(ax2, bx2) - Math.max(a.x, b.x));
+    const iy = Math.max(0, Math.min(ay2, by2) - Math.max(a.y, b.y));
+    return ix * iy;
+  };
+
+  const filtered = shapes
     .slice(0, 12)
+    .filter((s: any) => {
+      if (!exclusions || exclusions.length === 0) return true;
+      const k = String(s?.kind || "").toLowerCase();
+      if (k !== "rect") return true;
+      const rect = {
+        x: Math.max(0, Math.min(1, Number(s?.x ?? 0))),
+        y: Math.max(0, Math.min(1, Number(s?.y ?? 0))),
+        w: Math.max(0.01, Math.min(1, Number(s?.w ?? 0.1))),
+        h: Math.max(0.01, Math.min(1, Number(s?.h ?? 0.1))),
+      };
+      const area = rect.w * rect.h;
+      if (area <= 0) return true;
+      for (const ex of exclusions) {
+        const inter = overlaps(rect, ex);
+        if (inter / area > 0.12) return false; // too much overlap with content
+      }
+      return true;
+    });
+
+  const html = filtered
     .map((s: any) => {
       const k = String(s?.kind || "").toLowerCase();
       if (k === "rect") return renderRect(s);
@@ -928,7 +958,17 @@ export function outlineToStyledSlides(outline: Outline): string {
       })
       .join("");
 
-    const decor = renderShapes((s as any)?.stylePlan);
+    const boxToEx = (rect: { colStart: number; colSpan: number; rowStart: number; rowSpan: number }) => ({
+      x: (Math.max(1, Math.min(12, rect.colStart)) - 1) / 12,
+      y: (Math.max(1, Math.min(8, rect.rowStart)) - 1) / 8,
+      w: Math.max(1, Math.min(12, rect.colSpan)) / 12,
+      h: Math.max(1, Math.min(8, rect.rowSpan)) / 8,
+    });
+    const exclusions = variant.boxes
+      .filter((b) => b.kind !== "accentBar" && b.kind !== "fullBleedImage")
+      .map((b) => boxToEx(b.rect));
+
+    const decor = renderShapes((s as any)?.stylePlan, exclusions);
     const safeInner = `${decor}<div class="layout-grid">${boxesHtml}</div>`;
     const look = (s as any)?.look || (outline as any)?.look || "default";
     return renderSlideSection(

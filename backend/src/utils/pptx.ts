@@ -223,6 +223,78 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       }
     }
 
+    // Decorative shapes (AI-drawn) with basic exclusion (avoid overlapping main boxes too much).
+    const shapes = Array.isArray(sp?.shapes) ? sp.shapes : [];
+    const exclusions = layoutBoxes
+      .filter((b) => b.kind !== "accentBar" && b.kind !== "fullBleedImage")
+      .map((b) => {
+        const r = b.rect;
+        return {
+          x: (Math.max(1, Math.min(12, r.colStart)) - 1) / 12,
+          y: (Math.max(1, Math.min(8, r.rowStart)) - 1) / 8,
+          w: Math.max(1, Math.min(12, r.colSpan)) / 12,
+          h: Math.max(1, Math.min(8, r.rowSpan)) / 8,
+        };
+      });
+
+    const overlaps = (a: any, b: any): number => {
+      const ax2 = a.x + a.w;
+      const ay2 = a.y + a.h;
+      const bx2 = b.x + b.w;
+      const by2 = b.y + b.h;
+      const ix = Math.max(0, Math.min(ax2, bx2) - Math.max(a.x, b.x));
+      const iy = Math.max(0, Math.min(ay2, by2) - Math.max(a.y, b.y));
+      return ix * iy;
+    };
+
+    for (const sh of shapes.slice(0, 12)) {
+      const kind = String(sh?.kind || "").toLowerCase();
+      if (kind === "rect") {
+        const rect = {
+          x: Math.max(0, Math.min(1, Number(sh?.x ?? 0))),
+          y: Math.max(0, Math.min(1, Number(sh?.y ?? 0))),
+          w: Math.max(0.02, Math.min(1, Number(sh?.w ?? 0.2))),
+          h: Math.max(0.02, Math.min(1, Number(sh?.h ?? 0.1))),
+        };
+        const area = rect.w * rect.h;
+        if (area > 0) {
+          let bad = false;
+          for (const ex of exclusions) {
+            if (overlaps(rect, ex) / area > 0.12) {
+              bad = true;
+              break;
+            }
+          }
+          if (bad) continue;
+        }
+
+        const fill = hexOrDefault(sh?.fill, accent);
+        slide.addShape(pptx.ShapeType.roundRect, {
+          x: SAFE_X + rect.x * SAFE_W,
+          y: SAFE_Y + rect.y * SAFE_H,
+          w: rect.w * SAFE_W,
+          h: rect.h * SAFE_H,
+          fill: { color: pptxColor(fill), transparency: 35 },
+          line: { color: pptxColor(fill), transparency: 100 },
+        });
+      }
+
+      if (kind === "line") {
+        const x1 = Math.max(0, Math.min(1, Number(sh?.x1 ?? 0)));
+        const y1 = Math.max(0, Math.min(1, Number(sh?.y1 ?? 0)));
+        const x2 = Math.max(0, Math.min(1, Number(sh?.x2 ?? 0.4)));
+        const y2 = Math.max(0, Math.min(1, Number(sh?.y2 ?? 0)));
+        const stroke = hexOrDefault(sh?.stroke, accent);
+        slide.addShape(pptx.ShapeType.line, {
+          x: SAFE_X + x1 * SAFE_W,
+          y: SAFE_Y + y1 * SAFE_H,
+          w: (x2 - x1) * SAFE_W,
+          h: (y2 - y1) * SAFE_H,
+          line: { color: pptxColor(stroke), width: 3 },
+        });
+      }
+    }
+
     // Notes
     if (s?.notes) {
       try {
