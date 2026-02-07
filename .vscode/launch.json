@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "PowerPoint: Debug Add-in (Office Debugger)",
+      "type": "office-addin",
+      "request": "launch",
+      "officeApp": "PowerPoint",
+      "manifest": "${workspaceFolder}/manifest.xml",
+      "preLaunchTask": "Dev: Start backend+frontend (python run_dev.py)"
+    },
+    {
+      "name": "Attach: Backend (Node)",
+      "type": "pwa-node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"],
+      "outFiles": ["${workspaceFolder}/backend/dist/**/*.js"],
+      "preLaunchTask": "Backend: dev"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Dev: PowerPoint + Servers",
+      "configurations": ["PowerPoint: Debug Add-in (Office Debugger)"]
+    }
+  ]
+}

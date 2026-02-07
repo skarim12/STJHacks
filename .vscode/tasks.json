@@ -1,0 +1,55 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Dev: Start backend+frontend (python run_dev.py)",
+      "type": "shell",
+      "command": "python",
+      "args": ["run_dev.py"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": [
+        {
+          "owner": "custom",
+          "pattern": [{ "regexp": ".*" }],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "\\[starting frontend\\]|\\[starting backend\\]",
+            "endsPattern": "webpack compiled|Backend listening on port"
+          }
+        }
+      ]
+    },
+    {
+      "label": "Frontend: webpack dev server",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Backend: dev",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

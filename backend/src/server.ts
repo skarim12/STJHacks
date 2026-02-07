@@ -1,3 +1,5 @@
+import "./config/config"; // loads dotenv + validates required env vars early
+
 import express from "express";
 import cors from "cors";
 import apiRoutes from "./routes/api";
