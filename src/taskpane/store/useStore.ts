@@ -49,6 +49,7 @@ interface AppState {
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
   editFromMessage: (message: string) => Promise<void>;
   exportPptx: () => Promise<void>;
+  importPptx: (file: File) => Promise<void>;
   smartSelectTemplate: (topic: string) => Promise<void>;
   generateThemeForIndustry: (
     industry: string,
@@ -127,6 +128,18 @@ export const useStore = create<AppState>((set, get) => ({
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
       set({ error: err?.message || "Failed to export PPTX" });
+    } finally {
+      set({ generating: false });
+    }
+  },
+
+  importPptx: async (file: File) => {
+    set({ generating: true, error: null });
+    try {
+      const { outline } = await get().aiService.importPptx(file);
+      set({ outline, slides: outline.slides });
+    } catch (err: any) {
+      set({ error: err?.message || "Failed to import PPTX" });
     } finally {
       set({ generating: false });
     }

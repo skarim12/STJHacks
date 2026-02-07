@@ -38,6 +38,7 @@ export const IdeaInputPanel: React.FC = () => {
     generateFromIdea,
     editFromMessage,
     exportPptx,
+    importPptx,
     generating,
     powerPointService,
     selectedTheme,
@@ -154,6 +155,20 @@ export const IdeaInputPanel: React.FC = () => {
             disabled={generating || !editMessage.trim()}
           />
           <DefaultButton text="Download .pptx" onClick={exportPptx} disabled={generating} />
+          <label style={{ display: "inline-block" }}>
+            <input
+              type="file"
+              accept=".pptx"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importPptx(f);
+                // allow re-uploading same file
+                e.currentTarget.value = "";
+              }}
+            />
+            <DefaultButton text="Upload .pptx" disabled={generating} />
+          </label>
         </Stack>
       </Stack>
 

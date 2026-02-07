@@ -163,6 +163,17 @@ Return STRICT JSON only: { "notes": "..." }
     return response.data as Blob;
   }
 
+  async importPptx(file: File): Promise<{ extractedText: string; outline: PresentationOutline }> {
+    const form = new FormData();
+    form.append("file", file);
+
+    const response = await axios.post(`${API_BASE}/import-pptx`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    return response.data as { extractedText: string; outline: PresentationOutline };
+  }
+
   async findRelevantImages(topic: string): Promise<ImageSuggestion[]> {
     // Static suggestions; can be AI-driven later
     return [

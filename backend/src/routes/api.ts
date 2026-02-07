@@ -3,8 +3,17 @@ import axios from "axios";
 import NodeCache from "node-cache";
 import { config } from "../config/config";
 import { buildPptxBuffer } from "../utils/pptx";
+import multer from "multer";
+import { extractTextFromPptxBuffer } from "../utils/pptxImport";
 
 const router = Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB
+  },
+});
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
@@ -232,6 +241,62 @@ Return STRICT JSON only, with the SAME schema as the outline.
     // eslint-disable-next-line no-console
     console.error(err);
     res.status(500).json({ error: "Failed to edit outline", details: err.message });
+  }
+});
+
+/**
+ * Upload a PPTX and convert it into an outline JSON (so it can be edited by Anthropic).
+ * multipart/form-data field: file
+ * response: { extractedText, outline }
+ */
+router.post("/import-pptx", upload.single("file"), async (req, res) => {
+  try {
+    const file = (req as any).file as any | undefined;
+    if (!file) return res.status(400).json({ error: "file required" });
+
+    const extractedText = await extractTextFromPptxBuffer(file.buffer);
+
+    const system = `
+You are a presentation reverse-engineer.
+
+Given extracted slide text from an existing PowerPoint deck, reconstruct a best-effort outline in STRICT JSON with this schema:
+{
+  "title": "string",
+  "overallTheme": "string",
+  "colorScheme": {
+    "primary": "string",
+    "secondary": "string",
+    "accent": "string",
+    "background": "string",
+    "text": "string"
+  },
+  "slides": [
+    {
+      "title": "string",
+      "slideType": "title" | "content" | "comparison" | "image" | "quote",
+      "content": ["string"],
+      "notes": "string",
+      "suggestedLayout": "string"
+    }
+  ]
+}
+Rules:
+- Use concise titles.
+- Convert paragraphs into bullets.
+- If a slide has little text, infer a reasonable title.
+- Do not invent citations.
+`.trim();
+
+    const userPrompt = `Extracted deck text (slide by slide):\n\n${extractedText}`;
+
+    const cacheKey = `import:${file.originalname}:${file.size}`;
+    const outline = await anthropicJsonRequest(cacheKey, system, userPrompt, 4096);
+
+    res.json({ extractedText, outline });
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to import pptx", details: err.message });
   }
 });
 
