@@ -47,6 +47,8 @@ interface AppState {
 
   // Flows
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
+  editFromMessage: (message: string) => Promise<void>;
+  exportPptx: () => Promise<void>;
   smartSelectTemplate: (topic: string) => Promise<void>;
   generateThemeForIndustry: (
     industry: string,
@@ -82,6 +84,49 @@ export const useStore = create<AppState>((set, get) => ({
       set({ outline, slides: outline.slides });
     } catch (err: any) {
       set({ error: err?.message || "Failed to generate outline" });
+    } finally {
+      set({ generating: false });
+    }
+  },
+
+  editFromMessage: async (message: string) => {
+    const current = get().outline;
+    if (!current) {
+      set({ error: "Generate an outline first, then apply an edit message." });
+      return;
+    }
+
+    set({ generating: true, error: null });
+    try {
+      const updated = await get().aiService.editOutline(current, message);
+      set({ outline: updated, slides: updated.slides });
+    } catch (err: any) {
+      set({ error: err?.message || "Failed to edit outline" });
+    } finally {
+      set({ generating: false });
+    }
+  },
+
+  exportPptx: async () => {
+    const outline = get().outline;
+    if (!outline) {
+      set({ error: "Generate an outline first, then export." });
+      return;
+    }
+
+    set({ generating: true, error: null });
+    try {
+      const blob = await get().aiService.exportPptx(outline);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(outline.title || "presentation").replace(/\s+/g, "_")}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      set({ error: err?.message || "Failed to export PPTX" });
     } finally {
       set({ generating: false });
     }

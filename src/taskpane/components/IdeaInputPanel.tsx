@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   TextField,
   PrimaryButton,
+  DefaultButton,
   Stack,
   ProgressIndicator,
   Dropdown,
@@ -35,11 +36,15 @@ export const IdeaInputPanel: React.FC = () => {
 
   const {
     generateFromIdea,
+    editFromMessage,
+    exportPptx,
     generating,
     powerPointService,
     selectedTheme,
     smartSelectTemplate,
   } = useStore();
+
+  const [editMessage, setEditMessage] = useState("");
 
   useEffect(() => {
     if (debouncedIdea.trim()) {
@@ -66,13 +71,23 @@ export const IdeaInputPanel: React.FC = () => {
 
     await generateFromIdea(debouncedIdea, prefs);
 
-    // outline is stateful; read latest from store after generate.
-    const latestOutline = useStore.getState().outline;
-    if (!latestOutline) return;
+    // If running inside PowerPoint, also insert slides.
+    const w = window as any;
+    const hasPowerPoint = !!w.PowerPoint && typeof w.PowerPoint.run === "function";
 
-    // Batch insert slides to reduce PowerPoint.run/context.sync overhead
-    await powerPointService.createSlidesBatch(latestOutline.slides);
-    await powerPointService.applyColorTheme(selectedTheme);
+    if (hasPowerPoint) {
+      const latestOutline = useStore.getState().outline;
+      if (!latestOutline) return;
+
+      // Batch insert slides to reduce PowerPoint.run/context.sync overhead
+      await powerPointService.createSlidesBatch(latestOutline.slides);
+      await powerPointService.applyColorTheme(selectedTheme);
+    }
+  };
+
+  const handleApplyEditMessage = async () => {
+    if (!editMessage.trim()) return;
+    await editFromMessage(editMessage.trim());
   };
 
   return (
@@ -124,10 +139,28 @@ export const IdeaInputPanel: React.FC = () => {
         iconProps={{ iconName: "Lightbulb" }}
       />
 
+      <Stack tokens={{ childrenGap: 8 }}>
+        <TextField
+          label="Edit instruction (message)"
+          placeholder='E.g., "Make this more persuasive for investors" or "Add a slide about risks"'
+          value={editMessage}
+          onChange={(_, v) => setEditMessage(v || "")}
+          disabled={generating}
+        />
+        <Stack horizontal tokens={{ childrenGap: 8 }}>
+          <DefaultButton
+            text="Apply Edit"
+            onClick={handleApplyEditMessage}
+            disabled={generating || !editMessage.trim()}
+          />
+          <DefaultButton text="Download .pptx" onClick={exportPptx} disabled={generating} />
+        </Stack>
+      </Stack>
+
       {generating && (
         <ProgressIndicator
-          label="Creating your presentation..."
-          description="AI is generating slides and content"
+          label="Working..."
+          description="Generating, editing, or exporting"
         />
       )}
     </Stack>

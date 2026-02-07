@@ -153,6 +153,16 @@ Return STRICT JSON only: { "notes": "..." }
     return response.data as ResearchResult;
   }
 
+  async editOutline(outline: PresentationOutline, message: string): Promise<PresentationOutline> {
+    const response = await axios.post(`${API_BASE}/edit-outline`, { outline, message });
+    return response.data as PresentationOutline;
+  }
+
+  async exportPptx(outline: PresentationOutline): Promise<Blob> {
+    const response = await axios.post(`${API_BASE}/export-pptx`, { outline }, { responseType: "blob" });
+    return response.data as Blob;
+  }
+
   async findRelevantImages(topic: string): Promise<ImageSuggestion[]> {
     // Static suggestions; can be AI-driven later
     return [

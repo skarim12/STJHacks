@@ -2,6 +2,7 @@ import { Router } from "express";
 import axios from "axios";
 import NodeCache from "node-cache";
 import { config } from "../config/config";
+import { buildPptxBuffer } from "../utils/pptx";
 
 const router = Router();
 
@@ -149,6 +150,69 @@ Return STRICT JSON:
     // eslint-disable-next-line no-console
     console.error(err);
     res.status(500).json({ error: "Failed to fact check", details: err.message });
+  }
+});
+
+/**
+ * Export a generated outline to a downloadable .pptx.
+ * POST body: { outline: <PresentationOutline JSON> }
+ */
+router.post("/export-pptx", async (req, res) => {
+  try {
+    const outline = (req.body as any)?.outline;
+    if (!outline) return res.status(400).json({ error: "outline required" });
+
+    const buf = await buildPptxBuffer(outline);
+    const title = String(outline?.title || "presentation")
+      .replace(/[^a-z0-9\- _]/gi, "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .slice(0, 60);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${title || "presentation"}.pptx"`);
+    res.send(buf);
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to export pptx", details: err.message });
+  }
+});
+
+/**
+ * Apply an edit instruction ("message") to an existing outline.
+ * POST body: { outline: <PresentationOutline JSON>, message: "..." }
+ */
+router.post("/edit-outline", async (req, res) => {
+  try {
+    const outline = (req.body as any)?.outline;
+    const message = String((req.body as any)?.message || "").trim();
+    if (!outline) return res.status(400).json({ error: "outline required" });
+    if (!message) return res.status(400).json({ error: "message required" });
+
+    const system = `
+You are a presentation editor.
+
+You will be given an existing presentation outline JSON and an edit instruction.
+Return STRICT JSON only, with the SAME schema as the outline.
+- Preserve content unless the instruction requests a change.
+- Keep slides array in a reasonable length; do not exceed 20 slides.
+- Make sure content is slide-ready bullet points.
+`.trim();
+
+    const userPrompt = `Existing outline JSON:\n${JSON.stringify(outline)}\n\nEdit instruction:\n${message}`;
+
+    // Cache key includes both outline and message.
+    const cacheKey = `edit:${message}:${JSON.stringify(outline).slice(0, 2000)}`;
+    const json = await anthropicJsonRequest(cacheKey, system, userPrompt, 4096);
+    res.json(json);
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to edit outline", details: err.message });
   }
 });
 
