@@ -1,12 +1,14 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Stack, Text, MessageBar, MessageBarType } from "@fluentui/react";
 import { useStore } from "./store/useStore";
 import { IdeaInputPanel } from "./components/IdeaInputPanel";
 import { SlidePreview } from "./components/SlidePreview";
-import { ResearchPanel } from "./components/ResearchPanel";
 import { ColorThemeSelector } from "./components/ColorThemeSelector";
 import { TemplateGallery } from "./components/TemplateGallery";
-import { NotesGenerator } from "./components/NotesGenerator";
+
+// Lazy-loaded components (not always needed on initial load)
+const ResearchPanel = lazy(() => import("./components/ResearchPanel"));
+const NotesGenerator = lazy(() => import("./components/NotesGenerator"));
 
 const App: React.FC = () => {
   const { slides, error, setError } = useStore();
@@ -28,9 +30,15 @@ const App: React.FC = () => {
       <IdeaInputPanel />
       <SlidePreview slides={slides} onEdit={(i) => console.log("Edit slide", i)} />
       <TemplateGallery />
-      <ResearchPanel />
       <ColorThemeSelector />
-      <NotesGenerator />
+
+      <Suspense fallback={<Text variant="small">Loading research tools…</Text>}>
+        <ResearchPanel />
+      </Suspense>
+
+      <Suspense fallback={<Text variant="small">Loading notes tools…</Text>}>
+        <NotesGenerator />
+      </Suspense>
     </Stack>
   );
 };

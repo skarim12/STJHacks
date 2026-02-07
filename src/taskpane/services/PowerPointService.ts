@@ -1,6 +1,26 @@
 import type { SlideStructure, ColorScheme } from "../types";
 
 export class PowerPointService {
+  async createSlidesBatch(slidesToCreate: SlideStructure[]): Promise<void> {
+    return PowerPoint.run(async (context) => {
+      const presentation = context.presentation;
+      const slideCollection = presentation.slides;
+      const count = slideCollection.getCount();
+      await context.sync();
+
+      let index = count;
+      for (const structure of slidesToCreate) {
+        const slide = slideCollection.add(index++);
+        await this.populateSlide(slide, structure);
+        if (structure.notes) {
+          slide.notesPage.notesTextFrame.textRange.text = structure.notes;
+        }
+      }
+
+      await context.sync();
+    });
+  }
+
   async createSlideFromStructure(structure: SlideStructure, position?: number): Promise<void> {
     return PowerPoint.run(async (context) => {
       const presentation = context.presentation;

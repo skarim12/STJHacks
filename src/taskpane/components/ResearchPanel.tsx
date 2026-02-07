@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Stack, Text, TextField, PrimaryButton, ProgressIndicator } from "@fluentui/react";
 import { useStore } from "../store/useStore";
 
-export const ResearchPanel: React.FC = () => {
+const ResearchPanel: React.FC = () => {
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
   const [resultText, setResultText] = useState("");
@@ -48,3 +48,6 @@ export const ResearchPanel: React.FC = () => {
     </Stack>
   );
 };
+
+export { ResearchPanel };
+export default ResearchPanel;

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import apiRoutes from "./routes/api";
+import streamRoutes from "./routes/stream";
 import { authMiddleware } from "./middleware/auth";
 import { apiLimiter } from "./middleware/rateLimit";
 
@@ -23,6 +24,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api", apiRoutes);
+app.use("/stream", streamRoutes);
 
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console

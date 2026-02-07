@@ -1,10 +1,14 @@
 import { Router } from "express";
 import axios from "axios";
+import NodeCache from "node-cache";
 import { config } from "../config/config";
 
 const router = Router();
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+
+// 5 minute TTL; avoids repeat calls for identical prompts
+const cache = new NodeCache({ stdTTL: 300 });
 
 function headers() {
   if (!config.claudeApiKey) throw new Error("CLAUDE_API_KEY not set");
@@ -15,7 +19,15 @@ function headers() {
   };
 }
 
-async function anthropicJsonRequest(system: string, user: string, maxTokens?: number) {
+async function anthropicJsonRequest(
+  cacheKey: string,
+  system: string,
+  user: string,
+  maxTokens?: number
+) {
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const response = await axios.post(
     ANTHROPIC_URL,
     {
@@ -34,9 +46,12 @@ async function anthropicJsonRequest(system: string, user: string, maxTokens?: nu
   }
 
   const first = content[0];
-  const text = typeof first === "object" && first && "text" in first ? (first as any).text : String(first);
+  const text =
+    typeof first === "object" && first && "text" in first ? (first as any).text : String(first);
 
-  return JSON.parse(text);
+  const json = JSON.parse(text);
+  cache.set(cacheKey, json);
+  return json;
 }
 
 router.post("/outline", async (req, res) => {
@@ -70,7 +85,8 @@ Return JSON:
 }
 `.trim();
 
-    const json = await anthropicJsonRequest(system, userIdea);
+    const cacheKey = `outline:${userIdea}`;
+    const json = await anthropicJsonRequest(cacheKey, system, userIdea);
     res.json(json);
   } catch (err: any) {
     // eslint-disable-next-line no-console
@@ -99,7 +115,8 @@ Return STRICT JSON:
 
     const userPrompt = `Research topic for PowerPoint slides:\nTopic: ${topic}\nDepth: ${depth}`;
 
-    const json = await anthropicJsonRequest(system, userPrompt, depth === "detailed" ? 8192 : 2048);
+    const cacheKey = `research:${depth}:${topic}`;
+    const json = await anthropicJsonRequest(cacheKey, system, userPrompt, depth === "detailed" ? 8192 : 2048);
     res.json(json);
   } catch (err: any) {
     // eslint-disable-next-line no-console
@@ -125,7 +142,8 @@ Return STRICT JSON:
 }
 `.trim();
 
-    const json = await anthropicJsonRequest(system, claim, 2048);
+    const cacheKey = `factcheck:${claim}`;
+    const json = await anthropicJsonRequest(cacheKey, system, claim, 2048);
     res.json(json);
   } catch (err: any) {
     // eslint-disable-next-line no-console

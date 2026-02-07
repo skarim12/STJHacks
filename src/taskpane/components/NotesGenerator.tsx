@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Stack, Text, PrimaryButton, ProgressIndicator, TextField } from "@fluentui/react";
 import { useStore } from "../store/useStore";
 
-export const NotesGenerator: React.FC = () => {
+const NotesGenerator: React.FC = () => {
   const { slides, aiService, powerPointService, setError } = useStore();
   const [loading, setLoading] = useState(false);
   const [exportedNotes, setExportedNotes] = useState("");
@@ -42,3 +42,6 @@ export const NotesGenerator: React.FC = () => {
     </Stack>
   );
 };
+
+export { NotesGenerator };
+export default NotesGenerator;

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   TextField,
   PrimaryButton,
@@ -11,8 +11,21 @@ import {
 import { useStore } from "../store/useStore";
 import type { UserPreferences } from "../types";
 
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+
+  return debounced;
+}
+
 export const IdeaInputPanel: React.FC = () => {
   const [idea, setIdea] = useState("");
+  const debouncedIdea = useDebouncedValue(idea, 400);
+
   const [prefs, setPrefs] = useState<UserPreferences>({
     tone: "formal",
     audience: "General audience",
@@ -20,7 +33,20 @@ export const IdeaInputPanel: React.FC = () => {
     includeResearch: false,
   });
 
-  const { generateFromIdea, generating, powerPointService, outline, selectedTheme } = useStore();
+  const {
+    generateFromIdea,
+    generating,
+    powerPointService,
+    selectedTheme,
+    smartSelectTemplate,
+  } = useStore();
+
+  useEffect(() => {
+    if (debouncedIdea.trim()) {
+      // Suggest template based on debounced idea (non-blocking)
+      smartSelectTemplate(debouncedIdea).catch(() => undefined);
+    }
+  }, [debouncedIdea, smartSelectTemplate]);
 
   const toneOptions: IDropdownOption[] = [
     { key: "formal", text: "Formal" },
@@ -36,18 +62,16 @@ export const IdeaInputPanel: React.FC = () => {
   ];
 
   const handleGenerate = async () => {
-    if (!idea.trim()) return;
+    if (!debouncedIdea.trim()) return;
 
-    await generateFromIdea(idea, prefs);
+    await generateFromIdea(debouncedIdea, prefs);
 
-    // NOTE: outline is stateful; read latest from store after generate.
+    // outline is stateful; read latest from store after generate.
     const latestOutline = useStore.getState().outline;
     if (!latestOutline) return;
 
-    for (const slide of latestOutline.slides) {
-      await powerPointService.createSlideFromStructure(slide);
-    }
-
+    // Batch insert slides to reduce PowerPoint.run/context.sync overhead
+    await powerPointService.createSlidesBatch(latestOutline.slides);
     await powerPointService.applyColorTheme(selectedTheme);
   };
 
@@ -96,7 +120,7 @@ export const IdeaInputPanel: React.FC = () => {
       <PrimaryButton
         text="Generate Presentation"
         onClick={handleGenerate}
-        disabled={!idea || generating}
+        disabled={!debouncedIdea || generating}
         iconProps={{ iconName: "Lightbulb" }}
       />
 
