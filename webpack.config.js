@@ -1,0 +1,68 @@
+const path = require("path");
+const HtmlWebpackPlugin = require("html-webpack-plugin");
+const CopyWebpackPlugin = require("copy-webpack-plugin");
+
+/** @type {import('webpack').Configuration} */
+module.exports = {
+  entry: {
+    taskpane: "./src/taskpane/index.tsx",
+    commands: "./src/commands/commands.ts",
+  },
+  output: {
+    clean: true,
+    path: path.resolve(__dirname, "dist"),
+    filename: "[name].bundle.js",
+    publicPath: "/",
+  },
+  resolve: {
+    extensions: [".ts", ".tsx", ".js", ".jsx"],
+  },
+  module: {
+    rules: [
+      {
+        test: /\.tsx?$/,
+        use: "ts-loader",
+        exclude: /node_modules/,
+      },
+      {
+        test: /\.css$/,
+        use: ["style-loader", "css-loader"],
+      },
+      {
+        test: /\.(png|jpg|jpeg|gif|ico)$/,
+        type: "asset/resource",
+        generator: {
+          filename: "assets/[name][ext]",
+        },
+      },
+    ],
+  },
+  plugins: [
+    new HtmlWebpackPlugin({
+      filename: "taskpane.html",
+      template: "./src/taskpane/taskpane.html",
+      chunks: ["taskpane"],
+    }),
+    new HtmlWebpackPlugin({
+      filename: "commands.html",
+      template: "./src/taskpane/taskpane.html",
+      chunks: ["commands"],
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: "src/manifest.xml", to: "manifest.xml" },
+        { from: "assets", to: "assets" },
+      ],
+    }),
+  ],
+  devServer: {
+    port: 3000,
+    hot: true,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+    },
+    static: {
+      directory: path.join(__dirname, "dist"),
+    },
+  },
+};
