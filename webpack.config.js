@@ -18,6 +18,7 @@ module.exports = async () => {
     entry: {
       taskpane: "./src/taskpane/index.tsx",
       commands: "./src/commands/commands.ts",
+      local: "./src/local/index.tsx",
     },
     output: {
       clean: true,
@@ -58,6 +59,11 @@ module.exports = async () => {
         filename: "commands.html",
         template: "./src/taskpane/taskpane.html",
         chunks: ["commands"],
+      }),
+      new HtmlWebpackPlugin({
+        filename: "local.html",
+        template: "./src/local/local.html",
+        chunks: ["local"],
       }),
       new CopyWebpackPlugin({
         patterns: [
