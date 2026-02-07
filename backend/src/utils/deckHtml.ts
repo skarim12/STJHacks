@@ -4,6 +4,10 @@ export type Slide = {
   content?: string[];
   notes?: string;
   suggestedLayout?: string;
+  // Optional embedded image (data URI). Only set when explicitly enabled.
+  imageDataUri?: string;
+  imageCredit?: string;
+  imageSourcePage?: string;
 };
 
 export type Outline = {
@@ -294,6 +298,36 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
       min-height: 0;
     }
 
+    .card.accent{
+      border-color: rgba(255,255,255,.18);
+      background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+    }
+
+    .image-frame{
+      width: 100%;
+      height: 100%;
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      border: var(--stroke) solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .image-frame img{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display:block;
+    }
+
+    .image-credit{
+      font-size: 18px;
+      color: var(--faint);
+      margin-top: 10px;
+    }
+
     .card-title{
       font-size: 34px;
       font-weight: var(--w-bold);
@@ -470,10 +504,16 @@ export function outlineToStyledSlides(outline: Outline): string {
         const b = renderBullets(bullets, density === "compact" ? 8 : 6);
 
         const header = renderHeader({ kicker, title });
+        const imageBlock = s?.imageDataUri
+          ? `<div class="card accent"><div class="image-frame"><img alt="" src="${escapeHtml(s.imageDataUri)}" /></div>${
+              s?.imageCredit ? `<div class="image-credit">${escapeHtml(s.imageCredit)}</div>` : ""
+            }</div>`
+          : `<div class="placeholder">${escapeHtml(clampText(stripUnsafe("Visual placeholder"), 60))}<br/>${escapeHtml(clampText(stripUnsafe(title), 60))}</div>`;
+
         const body = `
   <div class="body">
     <div class="grid-2">
-      <div class="placeholder">${escapeHtml(clampText(stripUnsafe("Visual placeholder"), 60))}<br/>${escapeHtml(clampText(stripUnsafe(title), 60))}</div>
+      ${imageBlock}
       <div class="card">
         <h3 class="card-title">What the visual should convey</h3>
         ${b.html}
@@ -492,13 +532,30 @@ export function outlineToStyledSlides(outline: Outline): string {
       const maxBullets = density === "compact" ? 8 : 6;
       const b = renderBullets(bullets, maxBullets);
       const header = renderHeader({ kicker, title });
-      const body = `
+
+      const hasImage = !!s?.imageDataUri;
+      const body = hasImage
+        ? `
+  <div class="body">
+    <div class="grid-2">
+      <div class="card">
+        ${b.html}
+        ${b.overflowNote}
+      </div>
+      <div class="card accent">
+        <div class="image-frame"><img alt="" src="${escapeHtml(s.imageDataUri!)}" /></div>
+        ${s?.imageCredit ? `<div class="image-credit">${escapeHtml(s.imageCredit)}</div>` : ""}
+      </div>
+    </div>
+  </div>`
+        : `
   <div class="body">
     <div class="card">
       ${b.html}
       ${b.overflowNote}
     </div>
   </div>`;
+
       return renderSlideSection(`${header}${body}`, i, density, outline?.title);
     })
     .join("\n");

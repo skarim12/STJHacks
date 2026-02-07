@@ -6,6 +6,7 @@ import { buildPptxBuffer } from "../utils/pptx";
 import multer from "multer";
 import { extractTextFromPptxBuffer } from "../utils/pptxImport";
 import { outlineToAiSlides, outlineToSimpleSlides, outlineToStyledSlides, wrapDeckHtml } from "../utils/deckHtml";
+import { buildDefaultImageQuery, fetchSlideImageFromWikimedia } from "../utils/externalImages";
 import { renderHtmlToPdfBuffer } from "../utils/htmlToPdf";
 
 const router = Router();
@@ -282,13 +283,56 @@ router.post("/deck-html", async (req, res) => {
   try {
     const outline = (req.body as any)?.outline;
     const useAi = (req.body as any)?.useAi !== false; // default true
+    const allowExternalImages = (req.body as any)?.allowExternalImages === true;
     if (!outline) return res.status(400).json({ error: "outline required" });
+
+    if (allowExternalImages && Array.isArray(outline?.slides)) {
+      // Deterministic rule: fetch up to N slide images max per deck.
+      const maxDeckImages = 8;
+      let used = 0;
+
+      // Concurrency-limited fetch
+      const slides = outline.slides as any[];
+      let idx = 0;
+      const workers = new Array(2).fill(0).map(async () => {
+        while (idx < slides.length && used < maxDeckImages) {
+          const i = idx++;
+          const s = slides[i];
+          if (!s || s.slideType === "title") continue;
+          if (s.imageDataUri) continue;
+
+          // Prefer images on image slides; otherwise every other slide.
+          const normalizedType = String(s.slideType || "").toLowerCase();
+          const wantsImage = normalizedType === "image" || normalizedType === "imageplaceholder" || (i % 2 === 1);
+          if (!wantsImage) continue;
+
+          const query = buildDefaultImageQuery({
+            deckTitle: outline?.title,
+            slideTitle: s?.title,
+            bullets: Array.isArray(s?.content) ? s.content : [],
+          });
+
+          try {
+            const img = await fetchSlideImageFromWikimedia({ query });
+            if (img?.dataUri) {
+              s.imageDataUri = img.dataUri;
+              s.imageCredit = img.credit;
+              s.imageSourcePage = img.sourcePage;
+              used++;
+            }
+          } catch {
+            // best-effort
+          }
+        }
+      });
+      await Promise.all(workers);
+    }
 
     // Deterministic slide system: AI is allowed to assist content elsewhere,
     // but slide HTML rendering is guarded and stable.
     const slidesHtml = useAi
       ? await outlineToAiSlides(outline, anthropicJsonRequest, { concurrency: 2 })
-      : outlineToSimpleSlides(outline);
+      : outlineToStyledSlides(outline);
 
     const html = wrapDeckHtml(slidesHtml, outline);
     res.json({ html });
@@ -303,7 +347,45 @@ router.post("/export-pdf", async (req, res) => {
   try {
     const outline = (req.body as any)?.outline;
     const useAi = (req.body as any)?.useAi !== false; // default true
+    const allowExternalImages = (req.body as any)?.allowExternalImages === true;
     if (!outline) return res.status(400).json({ error: "outline required" });
+
+    if (allowExternalImages && Array.isArray(outline?.slides)) {
+      const maxDeckImages = 8;
+      let used = 0;
+      const slides = outline.slides as any[];
+      let idx = 0;
+      const workers = new Array(2).fill(0).map(async () => {
+        while (idx < slides.length && used < maxDeckImages) {
+          const i = idx++;
+          const s = slides[i];
+          if (!s || s.slideType === "title") continue;
+          if (s.imageDataUri) continue;
+          const normalizedType = String(s.slideType || "").toLowerCase();
+          const wantsImage = normalizedType === "image" || normalizedType === "imageplaceholder" || (i % 2 === 1);
+          if (!wantsImage) continue;
+
+          const query = buildDefaultImageQuery({
+            deckTitle: outline?.title,
+            slideTitle: s?.title,
+            bullets: Array.isArray(s?.content) ? s.content : [],
+          });
+
+          try {
+            const img = await fetchSlideImageFromWikimedia({ query });
+            if (img?.dataUri) {
+              s.imageDataUri = img.dataUri;
+              s.imageCredit = img.credit;
+              s.imageSourcePage = img.sourcePage;
+              used++;
+            }
+          } catch {
+            // best-effort
+          }
+        }
+      });
+      await Promise.all(workers);
+    }
 
     // Build one combined HTML doc with page breaks.
     // Note: rendering uses the deterministic design system in deckHtml.ts.

@@ -232,11 +232,15 @@ Return STRICT JSON only: { "notes": "..." }
     }
   }
 
-  async exportPdf(outline: PresentationOutline, useAi: boolean = true): Promise<Blob> {
+  async exportPdf(
+    outline: PresentationOutline,
+    useAi: boolean = true,
+    allowExternalImages: boolean = false
+  ): Promise<Blob> {
     try {
       const response = await axios.post(
         `${API_BASE}/export-pdf`,
-        { outline, useAi },
+        { outline, useAi, allowExternalImages },
         { responseType: "blob" }
       );
       return response.data as Blob;
@@ -245,9 +249,17 @@ Return STRICT JSON only: { "notes": "..." }
     }
   }
 
-  async getDeckHtml(outline: PresentationOutline, useAi: boolean = true): Promise<string> {
+  async getDeckHtml(
+    outline: PresentationOutline,
+    useAi: boolean = true,
+    allowExternalImages: boolean = false
+  ): Promise<string> {
     try {
-      const response = await axios.post(`${API_BASE}/deck-html`, { outline, useAi });
+      const response = await axios.post(`${API_BASE}/deck-html`, {
+        outline,
+        useAi,
+        allowExternalImages,
+      });
       return String((response.data as any)?.html || "");
     } catch (err: any) {
       throw new Error(extractApiError(err));
