@@ -61,20 +61,21 @@ ANTHROPIC_API_KEY=sk-ant-...
 PORT=4000
 ```
 
-### 3) Run backend + frontend
+### 3) Run everything (single command)
 
-Terminal 1 (backend):
+From the project root:
 
 ```bash
-cd backend
 npm run dev
 ```
 
-Terminal 2 (frontend/dev server):
+(That starts the backend on `:4000` and the frontend dev server on `:3000` together.)
+
+If you ever need to run them separately:
 
 ```bash
-cd ..
-npm run start
+npm run backend:dev
+npm run frontend:dev
 ```
 
 The dev server hosts:

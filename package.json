@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "concurrently -n backend,frontend -c green,cyan \"npm:backend:dev\" \"npm:frontend:dev\"",
+    "backend:dev": "npm --prefix backend run dev",
+    "frontend:dev": "webpack serve --mode development --config webpack.config.js",
+
     "test": "jest",
     "test:watch": "jest --watch",
+
     "start": "webpack serve --mode development --config webpack.config.js",
     "build": "webpack --mode production --config webpack.config.js"
   },
@@ -20,6 +25,7 @@
     "@types/office-js": "^1.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
+    "concurrently": "^9.1.2",
     "copy-webpack-plugin": "^12.0.0",
     "css-loader": "^7.1.2",
     "html-webpack-plugin": "^5.6.0",
