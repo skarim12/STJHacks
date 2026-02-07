@@ -38,6 +38,7 @@ export const IdeaInputPanel: React.FC = () => {
     generateFromIdea,
     editFromMessage,
     exportPptx,
+    exportPdf,
     importPptx,
     downloadOutlineJson,
     downloadExtractedText,
@@ -160,6 +161,7 @@ export const IdeaInputPanel: React.FC = () => {
             disabled={generating || !editMessage.trim()}
           />
           <DefaultButton text="Download .pptx" onClick={exportPptx} disabled={generating} />
+          <DefaultButton text="Download .pdf" onClick={exportPdf} disabled={generating} />
           <DefaultButton text="Download outline (.json)" onClick={downloadOutlineJson} disabled={generating} />
           <DefaultButton
             text="Download extracted text (.txt)"

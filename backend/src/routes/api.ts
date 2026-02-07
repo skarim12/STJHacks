@@ -5,6 +5,8 @@ import { config } from "../config/config";
 import { buildPptxBuffer } from "../utils/pptx";
 import multer from "multer";
 import { extractTextFromPptxBuffer } from "../utils/pptxImport";
+import { outlineToAiSlides, outlineToSimpleSlides, wrapDeckHtml } from "../utils/deckHtml";
+import { renderHtmlToPdfBuffer } from "../utils/htmlToPdf";
 
 const router = Router();
 
@@ -276,6 +278,39 @@ Return STRICT JSON:
  * Export a generated outline to a downloadable .pptx.
  * POST body: { outline: <PresentationOutline JSON> }
  */
+router.post("/export-pdf", async (req, res) => {
+  try {
+    const outline = (req.body as any)?.outline;
+    const useAi = (req.body as any)?.useAi !== false; // default true
+    if (!outline) return res.status(400).json({ error: "outline required" });
+
+    // Build one combined HTML doc with page breaks.
+    let slidesHtml: string;
+    if (useAi) {
+      slidesHtml = await outlineToAiSlides(outline, anthropicJsonRequest, { concurrency: 2 });
+    } else {
+      slidesHtml = outlineToSimpleSlides(outline);
+    }
+
+    const html = wrapDeckHtml(slidesHtml, outline);
+    const pdfBuf = await renderHtmlToPdfBuffer(html);
+
+    const title = String(outline?.title || "deck")
+      .replace(/[^a-z0-9\- _]/gi, "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .slice(0, 60);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${title || "deck"}.pdf"`);
+    res.send(pdfBuf);
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to export pdf", details: err.message });
+  }
+});
+
 router.post("/export-pptx", async (req, res) => {
   try {
     const outline = (req.body as any)?.outline;

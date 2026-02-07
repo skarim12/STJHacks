@@ -221,7 +221,24 @@ Return STRICT JSON only: { "notes": "..." }
 
   async exportPptx(outline: PresentationOutline): Promise<Blob> {
     try {
-      const response = await axios.post(`${API_BASE}/export-pptx`, { outline }, { responseType: "blob" });
+      const response = await axios.post(
+        `${API_BASE}/export-pptx`,
+        { outline },
+        { responseType: "blob" }
+      );
+      return response.data as Blob;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
+  }
+
+  async exportPdf(outline: PresentationOutline, useAi: boolean = true): Promise<Blob> {
+    try {
+      const response = await axios.post(
+        `${API_BASE}/export-pdf`,
+        { outline, useAi },
+        { responseType: "blob" }
+      );
       return response.data as Blob;
     } catch (err: any) {
       throw new Error(extractApiError(err));

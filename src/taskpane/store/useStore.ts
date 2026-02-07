@@ -52,6 +52,7 @@ interface AppState {
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
   editFromMessage: (message: string) => Promise<void>;
   exportPptx: () => Promise<void>;
+  exportPdf: () => Promise<void>;
   downloadOutlineJson: () => void;
   downloadExtractedText: () => void;
   importPptx: (file: File) => Promise<void>;
@@ -136,6 +137,31 @@ export const useStore = create<AppState>((set, get) => ({
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
       set({ error: err?.message || "Failed to export PPTX" });
+    } finally {
+      set({ generating: false });
+    }
+  },
+
+  exportPdf: async () => {
+    const outline = get().outline;
+    if (!outline) {
+      set({ error: "Generate an outline first, then export." });
+      return;
+    }
+
+    set({ generating: true, error: null });
+    try {
+      const blob = await get().aiService.exportPdf(outline, true);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(outline.title || "deck").replace(/\s+/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      set({ error: err?.message || "Failed to export PDF" });
     } finally {
       set({ generating: false });
     }

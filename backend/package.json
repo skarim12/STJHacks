@@ -18,7 +18,8 @@
     "jszip": "^3.10.1",
     "multer": "^2.0.2",
     "node-cache": "^5.1.2",
-    "pptxgenjs": "^4.0.1"
+    "pptxgenjs": "^4.0.1",
+    "puppeteer-core": "^24.37.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
