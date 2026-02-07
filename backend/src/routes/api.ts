@@ -414,7 +414,20 @@ router.post("/export-pdf", async (req, res) => {
 router.post("/export-pptx", async (req, res) => {
   try {
     const outline = (req.body as any)?.outline;
+    const allowExternalImages = (req.body as any)?.allowExternalImages === true;
+    const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
+    const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
     if (!outline) return res.status(400).json({ error: "outline required" });
+
+    // Enrich for PPTX too so images/layout plans exist.
+    await enrichOutlineWithImages(outline, {
+      allowExternalImages,
+      allowGeneratedImages,
+      imageStyle,
+      maxDeckImages: 10,
+      concurrency: 2,
+    });
+    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
 
     const buf = await buildPptxBuffer(outline);
     const title = String(outline?.title || "presentation")

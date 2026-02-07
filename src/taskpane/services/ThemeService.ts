@@ -45,6 +45,14 @@ export class ThemeService {
     }
   }
 
+  async generateThemeFromDescribe(describe: string): Promise<ColorScheme> {
+    try {
+      return await this.aiService.generateThemeFromDescribe(describe);
+    } catch {
+      return this.getDefaultScheme();
+    }
+  }
+
   async applyBrandColors(brandColors: string[]): Promise<ColorScheme> {
     const [primary, secondary, accent] = brandColors;
 

@@ -93,6 +93,38 @@ Return STRICT JSON only:
     }
   }
 
+  async generateThemeFromDescribe(describe: string): Promise<ColorScheme> {
+    const d = String(describe || "").trim();
+    if (!d) throw new Error("describe required");
+
+    const prompt = `
+You are a presentation brand designer.
+
+Create a cohesive theme based on this description:
+${d}
+
+Return STRICT JSON only:
+{
+  "primary": "#RRGGBB",
+  "secondary": "#RRGGBB",
+  "accent": "#RRGGBB",
+  "background": "#RRGGBB",
+  "text": "#RRGGBB"
+}
+
+Rules:
+- background/text MUST have strong contrast.
+- prefer safe, professional colors (no neon unless asked).
+`.trim();
+
+    try {
+      const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+      return response.data as ColorScheme;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
+  }
+
   async summarizeForSlide(longText: string, maxBullets: number = 5): Promise<string[]> {
     const prompt = `
 Summarize this content into ${maxBullets} concise, impactful bullet points suitable for a PowerPoint slide.
@@ -219,11 +251,16 @@ Return STRICT JSON only: { "notes": "..." }
     }
   }
 
-  async exportPptx(outline: PresentationOutline): Promise<Blob> {
+  async exportPptx(
+    outline: PresentationOutline,
+    allowExternalImages: boolean = false,
+    allowGeneratedImages: boolean = false,
+    imageStyle: "photo" | "illustration" = "photo"
+  ): Promise<Blob> {
     try {
       const response = await axios.post(
         `${API_BASE}/export-pptx`,
-        { outline },
+        { outline, allowExternalImages, allowGeneratedImages, imageStyle },
         { responseType: "blob" }
       );
       return response.data as Blob;

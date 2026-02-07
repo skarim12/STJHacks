@@ -45,6 +45,9 @@ interface AppState {
   // Optional deck-wide description hint (used for images/layout)
   deckDescribe: string;
 
+  // Deck-wide look preset
+  deckLook: "default" | "light" | "dark" | "bold";
+
   // Setters
   setOutline: (outline: PresentationOutline | null) => void;
   setSlides: (slides: SlideStructure[]) => void;
@@ -56,6 +59,8 @@ interface AppState {
   setGeneratedImagesEnabled: (enabled: boolean) => void;
   setDeckDescribe: (describe: string) => void;
   setSlideDescribe: (index: number, describe: string) => void;
+  setDeckLook: (look: "default" | "light" | "dark" | "bold") => void;
+  setSlideLook: (index: number, look: "default" | "light" | "dark" | "bold") => void;
 
   // Flows
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
@@ -70,6 +75,7 @@ interface AppState {
     industry: string,
     mood: "professional" | "creative" | "energetic"
   ) => Promise<void>;
+  generateThemeFromDescribe: (describe: string) => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -91,6 +97,7 @@ export const useStore = create<AppState>((set, get) => ({
   externalImagesEnabled: false,
   generatedImagesEnabled: false,
   deckDescribe: "",
+  deckLook: "default",
 
   setOutline: (outline) => set({ outline }),
   setSlides: (slides) => set({ slides }),
@@ -111,6 +118,17 @@ export const useStore = create<AppState>((set, get) => ({
     const current = get().outline;
     if (!current) return;
     const slides = current.slides.map((s, i) => (i === index ? { ...s, describe } : s));
+    set({ outline: { ...current, slides }, slides });
+  },
+  setDeckLook: (look) => {
+    set({ deckLook: look });
+    const current = get().outline;
+    if (current) set({ outline: { ...current, look }, slides: current.slides });
+  },
+  setSlideLook: (index, look) => {
+    const current = get().outline;
+    if (!current) return;
+    const slides = current.slides.map((s, i) => (i === index ? { ...s, look } : s));
     set({ outline: { ...current, slides }, slides });
   },
 
@@ -155,7 +173,12 @@ export const useStore = create<AppState>((set, get) => ({
 
     set({ generating: true, error: null });
     try {
-      const blob = await get().aiService.exportPptx(outline);
+      const blob = await get().aiService.exportPptx(
+        outline,
+        get().externalImagesEnabled,
+        get().generatedImagesEnabled,
+        "photo"
+      );
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -268,6 +291,19 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const theme = await get().themeService.generateThemeFromContext(industry, mood);
       set({ selectedTheme: theme });
+      const current = get().outline;
+      if (current) set({ outline: { ...current, colorScheme: theme }, slides: current.slides });
+    } catch (err: any) {
+      set({ error: err?.message || "Failed to generate theme" });
+    }
+  },
+
+  generateThemeFromDescribe: async (describe: string) => {
+    try {
+      const theme = await get().themeService.generateThemeFromDescribe(describe);
+      set({ selectedTheme: theme });
+      const current = get().outline;
+      if (current) set({ outline: { ...current, colorScheme: theme }, slides: current.slides });
     } catch (err: any) {
       set({ error: err?.message || "Failed to generate theme" });
     }

@@ -21,6 +21,8 @@ export const DeckPreviewPanel: React.FC = () => {
     setGeneratedImagesEnabled,
     deckDescribe,
     setDeckDescribe,
+    deckLook,
+    setDeckLook,
   } = useStore();
   const [loading, setLoading] = useState(false);
   const [html, setHtml] = useState<string>("");
@@ -108,6 +110,27 @@ export const DeckPreviewPanel: React.FC = () => {
         value={deckDescribe}
         onChange={(_, v) => setDeckDescribe(v || "")}
       />
+
+      <Stack horizontal tokens={{ childrenGap: 10 }} verticalAlign="end" styles={{ root: { flexWrap: "wrap" } }}>
+        <Toggle
+          label="Light look"
+          checked={deckLook === "light"}
+          onChange={(_, v) => setDeckLook(v ? "light" : "default")}
+          inlineLabel
+        />
+        <Toggle
+          label="Bold look"
+          checked={deckLook === "bold"}
+          onChange={(_, v) => setDeckLook(v ? "bold" : "default")}
+          inlineLabel
+        />
+        <Toggle
+          label="Dark look"
+          checked={deckLook === "dark"}
+          onChange={(_, v) => setDeckLook(v ? "dark" : "default")}
+          inlineLabel
+        />
+      </Stack>
 
       {!outline && (
         <MessageBar messageBarType={MessageBarType.info}>

@@ -8,6 +8,8 @@ export type Slide = {
   suggestedLayout?: string;
   // Optional user-provided description (for images/layout hints)
   describe?: string;
+  // Optional slide look preset
+  look?: "default" | "light" | "dark" | "bold";
   // Optional embedded image (data URI). Only set when explicitly enabled.
   imageDataUri?: string;
   imageCredit?: string;
@@ -21,6 +23,8 @@ export type Outline = {
   overallTheme?: string;
   // Optional deck-level description (for image/layout hints)
   describe?: string;
+  // Optional deck look preset
+  look?: "default" | "light" | "dark" | "bold";
   colorScheme?: {
     primary?: string;
     secondary?: string;
@@ -162,17 +166,41 @@ function parseComparison(slide: Slide): { leftTitle: string; rightTitle: string;
 // Theme + base CSS (design system)
 // -----------------------------
 
-function cssVarsFromOutline(outline: Outline): { bg: string; text: string; accent: string; accent2: string } {
+function cssVarsFromOutline(outline: Outline): {
+  bg: string;
+  text: string;
+  accent: string;
+  accent2: string;
+  isLightBg: boolean;
+} {
   const bg = String(outline?.colorScheme?.background || "#0b1220");
   const text = String(outline?.colorScheme?.text || "#ffffff");
   const accent = String(outline?.colorScheme?.accent || outline?.colorScheme?.primary || "#6ee7ff");
   const accent2 = String(outline?.colorScheme?.secondary || "#a78bfa");
-  return { bg, text, accent, accent2 };
+
+  const hexToRgb = (h: string): { r: number; g: number; b: number } | null => {
+    const m = String(h).trim().match(/^#?([0-9a-f]{6})$/i);
+    if (!m) return null;
+    const x = m[1];
+    return {
+      r: parseInt(x.slice(0, 2), 16),
+      g: parseInt(x.slice(2, 4), 16),
+      b: parseInt(x.slice(4, 6), 16),
+    };
+  };
+
+  const rgb = hexToRgb(bg);
+  const luminance = rgb
+    ? (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255
+    : 0;
+  const isLightBg = luminance > 0.72;
+
+  return { bg, text, accent, accent2, isLightBg };
 }
 
 // Shared CSS: one HTML doc with multiple .slide pages.
 export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
-  const { bg, text, accent, accent2 } = cssVarsFromOutline(outline);
+  const { bg, text, accent, accent2, isLightBg } = cssVarsFromOutline(outline);
 
   return `<!doctype html>
 <html>
@@ -218,18 +246,43 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
 
       --bg: ${bg};
       --text: ${text};
-      --muted: rgba(255,255,255,.72);
-      --faint: rgba(255,255,255,.48);
+      --muted: ${isLightBg ? "rgba(0,0,0,.62)" : "rgba(255,255,255,.72)"};
+      --faint: ${isLightBg ? "rgba(0,0,0,.42)" : "rgba(255,255,255,.48)"};
 
-      --panel: rgba(255,255,255,.06);
-      --panel-2: rgba(255,255,255,.10);
+      --panel: ${isLightBg ? "rgba(0,0,0,.04)" : "rgba(255,255,255,.06)"};
+      --panel-2: ${isLightBg ? "rgba(0,0,0,.07)" : "rgba(255,255,255,.10)"};
 
       --accent: ${accent};
       --accent-2: ${accent2};
-      --stroke-color: rgba(255,255,255,.12);
+      --stroke-color: ${isLightBg ? "rgba(0,0,0,.10)" : "rgba(255,255,255,.12)"};
     }
 
     body{ font-family: var(--font-sans); color: var(--text); }
+
+    /* Look presets (simple, deterministic). */
+    .slide[data-look="light"]{
+      --bg: #ffffff;
+      --text: #0b1220;
+      --muted: rgba(11,18,32,.62);
+      --faint: rgba(11,18,32,.42);
+      --panel: rgba(11,18,32,.04);
+      --panel-2: rgba(11,18,32,.07);
+      --stroke-color: rgba(11,18,32,.10);
+    }
+
+    .slide[data-look="dark"]{
+      /* use whatever outline.bg/text are, just strengthen panels */
+      --panel: rgba(255,255,255,.07);
+      --panel-2: rgba(255,255,255,.12);
+      --stroke-color: rgba(255,255,255,.14);
+    }
+
+    .slide[data-look="bold"]{
+      --title: 66px;
+      --body: 27px;
+      --panel: rgba(255,255,255,.08);
+      --stroke-color: rgba(255,255,255,.18);
+    }
 
     .slide{
       width: var(--slide-w);
@@ -500,11 +553,13 @@ function renderSlideSection(
   inner: string,
   index: number,
   density: "normal" | "compact" | "dense",
-  deckTitle?: string
+  deckTitle?: string,
+  look?: string
 ): string {
   const left = deckTitle ? escapeHtml(clampText(stripUnsafe(deckTitle), 40)) : "";
+  const dataLook = escapeHtml(String(look || "default"));
   return `
-<section class="slide" data-density="${density}">
+<section class="slide" data-density="${density}" data-look="${dataLook}">
   <div class="safe">${inner}
   </div>
   <div class="footer"><div>${left}</div><div>${index + 1}</div></div>
@@ -594,7 +649,8 @@ export function outlineToStyledSlides(outline: Outline): string {
       .join("");
 
     const inner = `<div class="layout-grid">${boxesHtml}</div>`;
-    return renderSlideSection(inner, i, density, deckTitle);
+    const look = (s as any)?.look || (outline as any)?.look || "default";
+    return renderSlideSection(inner, i, density, deckTitle, look);
   };
 
   return slides
@@ -612,7 +668,7 @@ export function outlineToStyledSlides(outline: Outline): string {
         const header = renderHeader({ kicker, title, subtitle: subtitle || undefined });
         const body = `<div class="body"><div class="card"><p class="subtitle">${escapeHtml(clampText(stripUnsafe(s?.notes || ""), 200))}</p></div></div>`;
         const density: "normal" | "compact" | "dense" = "normal";
-        return renderSlideSection(`${header}${body}`, i, density, outline?.title);
+        return renderSlideSection(`${header}${body}`, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
       }
 
       // Keep prior fallback logic for non-planned slides.
@@ -631,7 +687,7 @@ export function outlineToStyledSlides(outline: Outline): string {
     </div>
   </div>`;
 
-      return renderSlideSection(`${header}${body}`, i, density, outline?.title);
+      return renderSlideSection(`${header}${body}`, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
     })
     .join("\n");
 }

@@ -23,6 +23,8 @@ export interface SlideStructure {
   suggestedLayout: string;
   /** Optional user-provided description (used for image search/generation + layout hints). */
   describe?: string;
+  /** Optional per-slide look preset (affects rendering only, not content). */
+  look?: "default" | "light" | "dark" | "bold";
 }
 
 export interface PresentationOutline {
@@ -32,6 +34,8 @@ export interface PresentationOutline {
   overallTheme: string;
   /** Optional deck-level user description (applies as a hint across slides). */
   describe?: string;
+  /** Optional deck-level look preset (affects rendering only, not content). */
+  look?: "default" | "light" | "dark" | "bold";
 }
 
 export interface ResearchResult {

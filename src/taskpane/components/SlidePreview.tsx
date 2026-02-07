@@ -9,7 +9,7 @@ interface Props {
 }
 
 export const SlidePreview: React.FC<Props> = ({ slides, onEdit }) => {
-  const { setSlideDescribe } = useStore();
+  const { setSlideDescribe, setSlideLook } = useStore();
 
   return (
     <Stack tokens={{ childrenGap: 8 }}>
@@ -48,6 +48,13 @@ export const SlidePreview: React.FC<Props> = ({ slides, onEdit }) => {
                   value={slide.describe || ""}
                   onChange={(_, v) => setSlideDescribe(index, v || "")}
                 />
+
+                <Stack horizontal tokens={{ childrenGap: 10 }} verticalAlign="end" styles={{ root: { flexWrap: "wrap" } }}>
+                  <DefaultButton text="Default look" onClick={() => setSlideLook(index, "default")} />
+                  <DefaultButton text="Light" onClick={() => setSlideLook(index, "light")} />
+                  <DefaultButton text="Dark" onClick={() => setSlideLook(index, "dark")} />
+                  <DefaultButton text="Bold" onClick={() => setSlideLook(index, "bold")} />
+                </Stack>
               </Stack>
             ) : null
           }
