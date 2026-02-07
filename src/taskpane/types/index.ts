@@ -49,3 +49,13 @@ export interface FactCheckResult {
   explanation: string;
   sources: string[];
 }
+
+// NEW: Template-related types
+export type TemplateCategory = "business" | "educational" | "creative" | "technical";
+
+export interface Template {
+  id: string;
+  name: string;
+  description: string;
+  category: TemplateCategory;
+}

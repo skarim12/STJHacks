@@ -6,6 +6,7 @@ import type {
   ResearchResult,
   ImageSuggestion,
   FactCheckResult,
+  ColorScheme,
 } from "../types";
 import { buildOutlinePrompt } from "../utils/promptBuilder";
 
@@ -19,6 +20,79 @@ export class AIService {
     const prompt = buildOutlinePrompt(userIdea, preferences);
     const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
     return response.data as PresentationOutline;
+  }
+
+  /**
+   * Used internally by TemplateService and ThemeService for simple responses.
+   * NOTE: our backend /outline expects STRICT JSON and returns parsed JSON.
+   */
+  async rawClassification(prompt: string): Promise<string> {
+    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+    const data = response.data;
+
+    if (typeof data === "string") return data;
+    if (typeof data?.result === "string") return data.result;
+    if (typeof data?.category === "string") return data.category;
+
+    return JSON.stringify(data);
+  }
+
+  async generateColorSchemeFromContext(
+    industry: string,
+    mood: "professional" | "creative" | "energetic"
+  ): Promise<ColorScheme> {
+    const prompt = `
+Suggest a harmonious color scheme for a ${mood} ${industry} presentation.
+
+Return STRICT JSON only:
+{
+  "primary": "#RRGGBB",
+  "secondary": "#RRGGBB",
+  "accent": "#RRGGBB",
+  "background": "#RRGGBB",
+  "text": "#RRGGBB"
+}
+`.trim();
+
+    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+    return response.data as ColorScheme;
+  }
+
+  async summarizeForSlide(longText: string, maxBullets: number = 5): Promise<string[]> {
+    const prompt = `
+Summarize this content into ${maxBullets} concise, impactful bullet points suitable for a PowerPoint slide.
+
+${longText}
+
+Each bullet should be 10-15 words maximum.
+Return ONLY a JSON array of strings, e.g. ["point 1", "point 2"].
+`.trim();
+
+    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+    const data = response.data;
+
+    if (Array.isArray(data)) return data as string[];
+    if (Array.isArray(data?.bullets)) return data.bullets as string[];
+
+    throw new Error("Unexpected summarizeForSlide response format");
+  }
+
+  async expandBulletPoint(bullet: string): Promise<string> {
+    // Backend expects JSON; request JSON and pull notes.
+    const prompt = `
+Expand the following bullet point into detailed speaker notes for a PowerPoint presentation:
+"${bullet}"
+
+Return STRICT JSON only: { "notes": "..." }
+`.trim();
+
+    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+    const data = response.data;
+
+    if (typeof data === "string") return data;
+    if (typeof data?.notes === "string") return data.notes;
+
+    return JSON.stringify(data);
   }
 
   async enhanceSlideContent(
@@ -36,20 +110,22 @@ ${currentContent.map((c) => `- ${c}`).join("\n")}
 Context of the overall presentation:
 ${context}
 
-Return ONLY an array of improved bullet points as JSON, e.g.:
-["point 1", "point 2"]
+Return ONLY an array of improved bullet points as JSON, e.g. ["point 1", "point 2"].
 `.trim();
 
     const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
     const data = response.data;
+
     if (Array.isArray(data)) return data as string[];
     if (Array.isArray(data?.slides?.[0]?.content)) {
       return data.slides[0].content as string[];
     }
+
     throw new Error("Unexpected enhanceSlideContent response format");
   }
 
   async generateSpeakerNotes(slide: SlideStructure): Promise<string> {
+    // Backend expects JSON; request JSON and pull notes.
     const prompt = `
 Generate detailed speaker notes for this PowerPoint slide.
 
@@ -58,13 +134,15 @@ Type: ${slide.slideType}
 Bullet points:
 ${slide.content.map((c) => `- ${c}`).join("\n")}
 
-Return ONLY a plain text paragraph of speaker notes.
+Return STRICT JSON only: { "notes": "..." }
 `.trim();
 
     const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
     const data = response.data;
+
     if (typeof data === "string") return data;
-    if (typeof data.notes === "string") return data.notes;
+    if (typeof data?.notes === "string") return data.notes;
+
     return JSON.stringify(data);
   }
 
