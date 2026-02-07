@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import type {
   PresentationOutline,
   UserPreferences,
@@ -14,14 +14,38 @@ const API_BASE =
   (typeof window !== "undefined" && (window as any).__BACKEND_URL__) ||
   "http://localhost:4000/api";
 
+function extractApiError(err: unknown): string {
+  // Axios errors from backend often include { error, details }
+  const ax = err as AxiosError<any>;
+  const status = (ax as any)?.response?.status;
+  const data = (ax as any)?.response?.data;
+
+  if (data) {
+    const msg = data?.details || data?.error || data?.message;
+    if (msg) return status ? `HTTP ${status}: ${msg}` : String(msg);
+    try {
+      return status ? `HTTP ${status}: ${JSON.stringify(data)}` : JSON.stringify(data);
+    } catch {
+      // ignore
+    }
+  }
+
+  const anyErr = err as any;
+  return anyErr?.message || String(err);
+}
+
 export class AIService {
   async generatePresentationOutline(
     userIdea: string,
     preferences?: UserPreferences
   ): Promise<PresentationOutline> {
     const prompt = buildOutlinePrompt(userIdea, preferences);
-    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
-    return response.data as PresentationOutline;
+    try {
+      const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+      return response.data as PresentationOutline;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
   }
 
   /**
@@ -29,8 +53,13 @@ export class AIService {
    * NOTE: our backend /outline expects STRICT JSON and returns parsed JSON.
    */
   async rawClassification(prompt: string): Promise<string> {
-    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
-    const data = response.data;
+    let data: any;
+    try {
+      const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+      data = response.data;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
 
     if (typeof data === "string") return data;
     if (typeof data?.result === "string") return data.result;
@@ -56,8 +85,12 @@ Return STRICT JSON only:
 }
 `.trim();
 
-    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
-    return response.data as ColorScheme;
+    try {
+      const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+      return response.data as ColorScheme;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
   }
 
   async summarizeForSlide(longText: string, maxBullets: number = 5): Promise<string[]> {
@@ -70,8 +103,13 @@ Each bullet should be 10-15 words maximum.
 Return ONLY a JSON array of strings, e.g. ["point 1", "point 2"].
 `.trim();
 
-    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
-    const data = response.data;
+    let data: any;
+    try {
+      const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+      data = response.data;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
 
     if (Array.isArray(data)) return data as string[];
     if (Array.isArray(data?.bullets)) return data.bullets as string[];
@@ -88,8 +126,13 @@ Expand the following bullet point into detailed speaker notes for a PowerPoint p
 Return STRICT JSON only: { "notes": "..." }
 `.trim();
 
-    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
-    const data = response.data;
+    let data: any;
+    try {
+      const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+      data = response.data;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
 
     if (typeof data === "string") return data;
     if (typeof data?.notes === "string") return data.notes;
@@ -115,8 +158,13 @@ ${context}
 Return ONLY an array of improved bullet points as JSON, e.g. ["point 1", "point 2"].
 `.trim();
 
-    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
-    const data = response.data;
+    let data: any;
+    try {
+      const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+      data = response.data;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
 
     if (Array.isArray(data)) return data as string[];
     if (Array.isArray(data?.slides?.[0]?.content)) {
@@ -139,8 +187,13 @@ ${slide.content.map((c) => `- ${c}`).join("\n")}
 Return STRICT JSON only: { "notes": "..." }
 `.trim();
 
-    const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
-    const data = response.data;
+    let data: any;
+    try {
+      const response = await axios.post(`${API_BASE}/outline`, { userIdea: prompt });
+      data = response.data;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
 
     if (typeof data === "string") return data;
     if (typeof data?.notes === "string") return data.notes;
@@ -149,29 +202,45 @@ Return STRICT JSON only: { "notes": "..." }
   }
 
   async researchTopic(topic: string, depth: "quick" | "detailed"): Promise<ResearchResult> {
-    const response = await axios.post(`${API_BASE}/research`, { topic, depth });
-    return response.data as ResearchResult;
+    try {
+      const response = await axios.post(`${API_BASE}/research`, { topic, depth });
+      return response.data as ResearchResult;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
   }
 
   async editOutline(outline: PresentationOutline, message: string): Promise<PresentationOutline> {
-    const response = await axios.post(`${API_BASE}/edit-outline`, { outline, message });
-    return response.data as PresentationOutline;
+    try {
+      const response = await axios.post(`${API_BASE}/edit-outline`, { outline, message });
+      return response.data as PresentationOutline;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
   }
 
   async exportPptx(outline: PresentationOutline): Promise<Blob> {
-    const response = await axios.post(`${API_BASE}/export-pptx`, { outline }, { responseType: "blob" });
-    return response.data as Blob;
+    try {
+      const response = await axios.post(`${API_BASE}/export-pptx`, { outline }, { responseType: "blob" });
+      return response.data as Blob;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
   }
 
   async importPptx(file: File): Promise<{ extractedText: string; outline: PresentationOutline }> {
     const form = new FormData();
     form.append("file", file);
 
-    const response = await axios.post(`${API_BASE}/import-pptx`, form, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    try {
+      const response = await axios.post(`${API_BASE}/import-pptx`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
-    return response.data as { extractedText: string; outline: PresentationOutline };
+      return response.data as { extractedText: string; outline: PresentationOutline };
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
   }
 
   async findRelevantImages(topic: string): Promise<ImageSuggestion[]> {
@@ -191,7 +260,11 @@ Return STRICT JSON only: { "notes": "..." }
   }
 
   async factCheck(claim: string): Promise<FactCheckResult> {
-    const response = await axios.post(`${API_BASE}/fact-check`, { claim });
-    return response.data as FactCheckResult;
+    try {
+      const response = await axios.post(`${API_BASE}/fact-check`, { claim });
+      return response.data as FactCheckResult;
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
   }
 }
