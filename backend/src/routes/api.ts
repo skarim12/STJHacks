@@ -64,23 +64,90 @@ async function anthropicJsonRequest(
 
   const content = (response.data as any)?.content;
   if (!Array.isArray(content) || content.length === 0) {
-    throw new Error("Unexpected Anthropic response");
+    throw new Error("Unexpected Anthropic response (missing content array)");
   }
 
   const first = content[0];
-  const text =
+  const rawText =
     typeof first === "object" && first && "text" in first ? (first as any).text : String(first);
 
-  try {
-    const json = JSON.parse(text);
-    cache.set(cacheKey, json);
-    return json;
-  } catch (e: any) {
-    const preview = String(text).slice(0, 5000);
-    throw new Error(
-      `Anthropic returned non-JSON (or invalid JSON). First 5k chars:\n${preview}`
-    );
+  const cleaned = String(rawText)
+    .trim()
+    // common: ```json ... ```
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+
+  const tryParse = (s: string) => {
+    try {
+      return JSON.parse(s);
+    } catch {
+      return null;
+    }
+  };
+
+  // 1) Fast path
+  const direct = tryParse(cleaned);
+  if (direct) {
+    cache.set(cacheKey, direct);
+    return direct;
   }
+
+  // 2) Best-effort: extract the first JSON object/array from the text.
+  const extractFirstJson = (s: string): string | null => {
+    const start = s.search(/[\[{]/);
+    if (start < 0) return null;
+
+    // Try to find a matching closing brace/bracket by scanning and tracking depth.
+    const openChar = s[start];
+    const closeChar = openChar === "[" ? "]" : "}";
+
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = start; i < s.length; i++) {
+      const ch = s[i];
+      if (inString) {
+        if (escape) {
+          escape = false;
+        } else if (ch === "\\") {
+          escape = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === openChar) depth++;
+      if (ch === closeChar) depth--;
+
+      if (depth === 0) {
+        return s.slice(start, i + 1);
+      }
+    }
+
+    return null;
+  };
+
+  const extracted = extractFirstJson(cleaned);
+  if (extracted) {
+    const parsed = tryParse(extracted);
+    if (parsed) {
+      cache.set(cacheKey, parsed);
+      return parsed;
+    }
+  }
+
+  const preview = String(rawText).slice(0, 5000);
+  throw new Error(
+    `Anthropic returned non-JSON (or invalid JSON). First 5k chars:\n${preview}`
+  );
 }
 
 router.post("/outline", async (req, res) => {
@@ -227,7 +294,7 @@ You are a presentation editor.
 You will be given an existing presentation outline JSON and an edit instruction.
 Return STRICT JSON only, with the SAME schema as the outline.
 - Preserve content unless the instruction requests a change.
-- Keep slides array in a reasonable length; do not exceed 20 slides.
+- Preserve the number of slides and slide ordering unless the instruction explicitly asks to add/remove/reorder slides.
 - Make sure content is slide-ready bullet points.
 `.trim();
 
