@@ -11,7 +11,14 @@ import {
 import { useStore } from "../store/useStore";
 
 export const DeckPreviewPanel: React.FC = () => {
-  const { outline, aiService, externalImagesEnabled, setExternalImagesEnabled } = useStore();
+  const {
+    outline,
+    aiService,
+    externalImagesEnabled,
+    setExternalImagesEnabled,
+    generatedImagesEnabled,
+    setGeneratedImagesEnabled,
+  } = useStore();
   const [loading, setLoading] = useState(false);
   const [html, setHtml] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
@@ -38,7 +45,12 @@ export const DeckPreviewPanel: React.FC = () => {
     setLoading(true);
     setErr(null);
     try {
-      const deckHtml = await aiService.getDeckHtml(outline, useAi, externalImagesEnabled);
+      const deckHtml = await aiService.getDeckHtml(
+        outline,
+        useAi,
+        externalImagesEnabled,
+        generatedImagesEnabled
+      );
       if (!deckHtml || deckHtml.length < 50) {
         throw new Error("Deck HTML was empty");
       }
@@ -77,6 +89,12 @@ export const DeckPreviewPanel: React.FC = () => {
           label="External images (Wikimedia)"
           checked={externalImagesEnabled}
           onChange={(_, v) => setExternalImagesEnabled(!!v)}
+          inlineLabel
+        />
+        <Toggle
+          label="AI-generated images (OpenAI)"
+          checked={generatedImagesEnabled}
+          onChange={(_, v) => setGeneratedImagesEnabled(!!v)}
           inlineLabel
         />
       </Stack>

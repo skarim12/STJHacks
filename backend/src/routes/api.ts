@@ -7,6 +7,7 @@ import multer from "multer";
 import { extractTextFromPptxBuffer } from "../utils/pptxImport";
 import { outlineToAiSlides, outlineToSimpleSlides, outlineToStyledSlides, wrapDeckHtml } from "../utils/deckHtml";
 import { buildDefaultImageQuery, fetchSlideImageFromWikimedia } from "../utils/externalImages";
+import { generateSlideImageOpenAI } from "../utils/imageGeneration";
 import { renderHtmlToPdfBuffer } from "../utils/htmlToPdf";
 
 const router = Router();
@@ -284,9 +285,10 @@ router.post("/deck-html", async (req, res) => {
     const outline = (req.body as any)?.outline;
     const useAi = (req.body as any)?.useAi !== false; // default true
     const allowExternalImages = (req.body as any)?.allowExternalImages === true;
+    const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
     if (!outline) return res.status(400).json({ error: "outline required" });
 
-    if (allowExternalImages && Array.isArray(outline?.slides)) {
+    if ((allowExternalImages || allowGeneratedImages) && Array.isArray(outline?.slides)) {
       // Deterministic rule: fetch up to N slide images max per deck.
       const maxDeckImages = 8;
       let used = 0;
@@ -312,16 +314,33 @@ router.post("/deck-html", async (req, res) => {
             bullets: Array.isArray(s?.content) ? s.content : [],
           });
 
-          try {
-            const img = await fetchSlideImageFromWikimedia({ query });
-            if (img?.dataUri) {
-              s.imageDataUri = img.dataUri;
-              s.imageCredit = img.credit;
-              s.imageSourcePage = img.sourcePage;
-              used++;
+          if (allowExternalImages) {
+            try {
+              const img = await fetchSlideImageFromWikimedia({ query });
+              if (img?.dataUri) {
+                s.imageDataUri = img.dataUri;
+                s.imageCredit = img.credit;
+                s.imageSourcePage = img.sourcePage;
+                used++;
+                continue;
+              }
+            } catch {
+              // ignore
             }
-          } catch {
-            // best-effort
+          }
+
+          if (allowGeneratedImages) {
+            try {
+              const gen = await generateSlideImageOpenAI({ prompt: query, style: "illustration" });
+              if (gen?.dataUri) {
+                s.imageDataUri = gen.dataUri;
+                s.imageCredit = "AI-generated (OpenAI)";
+                s.imageSourcePage = "";
+                used++;
+              }
+            } catch {
+              // ignore
+            }
           }
         }
       });
@@ -348,9 +367,10 @@ router.post("/export-pdf", async (req, res) => {
     const outline = (req.body as any)?.outline;
     const useAi = (req.body as any)?.useAi !== false; // default true
     const allowExternalImages = (req.body as any)?.allowExternalImages === true;
+    const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
     if (!outline) return res.status(400).json({ error: "outline required" });
 
-    if (allowExternalImages && Array.isArray(outline?.slides)) {
+    if ((allowExternalImages || allowGeneratedImages) && Array.isArray(outline?.slides)) {
       const maxDeckImages = 8;
       let used = 0;
       const slides = outline.slides as any[];
@@ -371,16 +391,33 @@ router.post("/export-pdf", async (req, res) => {
             bullets: Array.isArray(s?.content) ? s.content : [],
           });
 
-          try {
-            const img = await fetchSlideImageFromWikimedia({ query });
-            if (img?.dataUri) {
-              s.imageDataUri = img.dataUri;
-              s.imageCredit = img.credit;
-              s.imageSourcePage = img.sourcePage;
-              used++;
+          if (allowExternalImages) {
+            try {
+              const img = await fetchSlideImageFromWikimedia({ query });
+              if (img?.dataUri) {
+                s.imageDataUri = img.dataUri;
+                s.imageCredit = img.credit;
+                s.imageSourcePage = img.sourcePage;
+                used++;
+                continue;
+              }
+            } catch {
+              // ignore
             }
-          } catch {
-            // best-effort
+          }
+
+          if (allowGeneratedImages) {
+            try {
+              const gen = await generateSlideImageOpenAI({ prompt: query, style: "illustration" });
+              if (gen?.dataUri) {
+                s.imageDataUri = gen.dataUri;
+                s.imageCredit = "AI-generated (OpenAI)";
+                s.imageSourcePage = "";
+                used++;
+              }
+            } catch {
+              // ignore
+            }
           }
         }
       });

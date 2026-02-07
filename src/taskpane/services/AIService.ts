@@ -235,12 +235,13 @@ Return STRICT JSON only: { "notes": "..." }
   async exportPdf(
     outline: PresentationOutline,
     useAi: boolean = true,
-    allowExternalImages: boolean = false
+    allowExternalImages: boolean = false,
+    allowGeneratedImages: boolean = false
   ): Promise<Blob> {
     try {
       const response = await axios.post(
         `${API_BASE}/export-pdf`,
-        { outline, useAi, allowExternalImages },
+        { outline, useAi, allowExternalImages, allowGeneratedImages },
         { responseType: "blob" }
       );
       return response.data as Blob;
@@ -252,13 +253,15 @@ Return STRICT JSON only: { "notes": "..." }
   async getDeckHtml(
     outline: PresentationOutline,
     useAi: boolean = true,
-    allowExternalImages: boolean = false
+    allowExternalImages: boolean = false,
+    allowGeneratedImages: boolean = false
   ): Promise<string> {
     try {
       const response = await axios.post(`${API_BASE}/deck-html`, {
         outline,
         useAi,
         allowExternalImages,
+        allowGeneratedImages,
       });
       return String((response.data as any)?.html || "");
     } catch (err: any) {

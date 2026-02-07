@@ -40,6 +40,7 @@ interface AppState {
   selectedTheme: ColorScheme;
   selectedTemplate: Template | null;
   externalImagesEnabled: boolean;
+  generatedImagesEnabled: boolean;
 
   // Setters
   setOutline: (outline: PresentationOutline | null) => void;
@@ -49,6 +50,7 @@ interface AppState {
   setTheme: (theme: ColorScheme) => void;
   setSelectedTemplate: (tpl: Template | null) => void;
   setExternalImagesEnabled: (enabled: boolean) => void;
+  setGeneratedImagesEnabled: (enabled: boolean) => void;
 
   // Flows
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
@@ -82,6 +84,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedTheme: themeService.getDefaultScheme(),
   selectedTemplate: null,
   externalImagesEnabled: false,
+  generatedImagesEnabled: false,
 
   setOutline: (outline) => set({ outline }),
   setSlides: (slides) => set({ slides }),
@@ -90,6 +93,7 @@ export const useStore = create<AppState>((set, get) => ({
   setTheme: (theme) => set({ selectedTheme: theme }),
   setSelectedTemplate: (tpl) => set({ selectedTemplate: tpl }),
   setExternalImagesEnabled: (enabled) => set({ externalImagesEnabled: enabled }),
+  setGeneratedImagesEnabled: (enabled) => set({ generatedImagesEnabled: enabled }),
 
   generateFromIdea: async (idea: string, prefs?: UserPreferences) => {
     set({ generating: true, error: null });
@@ -155,7 +159,12 @@ export const useStore = create<AppState>((set, get) => ({
 
     set({ generating: true, error: null });
     try {
-      const blob = await get().aiService.exportPdf(outline, true, get().externalImagesEnabled);
+      const blob = await get().aiService.exportPdf(
+        outline,
+        true,
+        get().externalImagesEnabled,
+        get().generatedImagesEnabled
+      );
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
