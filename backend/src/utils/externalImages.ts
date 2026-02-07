@@ -65,6 +65,12 @@ async function wikimediaSearchFirstImage(query: string, thumbWidth: number): Pro
       inprop: "url",
     },
     timeout: 6000,
+    headers: {
+      // Wikimedia APIs increasingly require a descriptive User-Agent.
+      // https://meta.wikimedia.org/wiki/User-Agent_policy
+      "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
+      Accept: "application/json",
+    },
   });
 
   const pages = (searchResp.data as any)?.query?.pages;

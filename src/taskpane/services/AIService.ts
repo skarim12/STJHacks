@@ -307,7 +307,7 @@ Return STRICT JSON only: { "notes": "..." }
     allowExternalImages: boolean = false,
     allowGeneratedImages: boolean = false,
     imageStyle: "photo" | "illustration" = "photo"
-  ): Promise<string> {
+  ): Promise<{ html: string; enrichment?: any }> {
     try {
       const response = await axios.post(`${API_BASE}/deck-html`, {
         outline,
@@ -316,7 +316,10 @@ Return STRICT JSON only: { "notes": "..." }
         allowGeneratedImages,
         imageStyle,
       });
-      return String((response.data as any)?.html || "");
+      return {
+        html: String((response.data as any)?.html || ""),
+        enrichment: (response.data as any)?.enrichment,
+      };
     } catch (err: any) {
       throw new Error(extractApiError(err));
     }

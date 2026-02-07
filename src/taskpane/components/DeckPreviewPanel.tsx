@@ -28,6 +28,7 @@ export const DeckPreviewPanel: React.FC = () => {
   const [html, setHtml] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
   const [useAi, setUseAi] = useState(true);
+  const [enrichment, setEnrichment] = useState<any>(null);
 
   const canRender = !!outline;
 
@@ -50,16 +51,18 @@ export const DeckPreviewPanel: React.FC = () => {
     setLoading(true);
     setErr(null);
     try {
-      const deckHtml = await aiService.getDeckHtml(
+      const resp = await aiService.getDeckHtml(
         outline,
         useAi,
         externalImagesEnabled,
         generatedImagesEnabled
       );
+      const deckHtml = resp?.html || "";
       if (!deckHtml || deckHtml.length < 50) {
         throw new Error("Deck HTML was empty");
       }
       setHtml(deckHtml);
+      setEnrichment(resp?.enrichment || null);
     } catch (e: any) {
       setErr(e?.message || "Failed to render deck preview");
     } finally {
@@ -78,6 +81,20 @@ export const DeckPreviewPanel: React.FC = () => {
       {err && (
         <MessageBar messageBarType={MessageBarType.error} onDismiss={() => setErr(null)}>
           {err}
+        </MessageBar>
+      )}
+
+      {!err && (externalImagesEnabled || generatedImagesEnabled) && enrichment && (
+        <MessageBar
+          messageBarType={
+            enrichment?.imagesAdded > 0 ? MessageBarType.success : MessageBarType.warning
+          }
+        >
+          {enrichment?.imagesAdded > 0
+            ? `Images added: ${enrichment.imagesAdded}`
+            : `Image enrichment ran but added 0 images. First error: ${String(
+                enrichment?.perSlide?.find((p: any) => p?.error)?.error || "(none)"
+              ).slice(0, 240)}`}
         </MessageBar>
       )}
 

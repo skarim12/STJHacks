@@ -14,7 +14,13 @@ export type ImageEnrichmentOptions = {
 
 export type EnrichmentReport = {
   imagesAdded: number;
-  perSlide: Array<{ index: number; slideType: string; query: string; source: "wikimedia" | "openai" | "none" }>;
+  perSlide: Array<{
+    index: number;
+    slideType: string;
+    query: string;
+    source: "wikimedia" | "openai" | "none";
+    error?: string;
+  }>;
 };
 
 export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmentOptions): Promise<EnrichmentReport> {
@@ -56,6 +62,8 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
       });
       if (!query) continue;
 
+      let lastError: string | undefined;
+
       // 1) Wikimedia
       if (allowExternalImages) {
         try {
@@ -69,8 +77,8 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             report.perSlide.push({ index: i, slideType, query, source: "wikimedia" });
             continue;
           }
-        } catch {
-          // ignore
+        } catch (e: any) {
+          lastError = `wikimedia: ${String(e?.message || e)}`;
         }
       }
 
@@ -87,12 +95,12 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             report.perSlide.push({ index: i, slideType, query, source: "openai" });
             continue;
           }
-        } catch {
-          // ignore
+        } catch (e: any) {
+          lastError = lastError || `openai: ${String(e?.message || e)}`;
         }
       }
 
-      report.perSlide.push({ index: i, slideType, query, source: "none" });
+      report.perSlide.push({ index: i, slideType, query, source: "none", ...(lastError ? { error: lastError } : {}) });
     }
   });
 
