@@ -121,13 +121,15 @@ Allowed variants:
 ${variants.map((v) => `- ${v.name}`).join("\n")}
 
 Slide title: ${String(s.title || "").slice(0, 120)}
+User describe (if any): ${String(s.describe || outline?.describe || "").slice(0, 220)}
 First bullets:
 ${(Array.isArray(s.content) ? s.content : []).slice(0, 4).map((b: any) => `- ${String(b).slice(0, 140)}`).join("\n")}
 `;
 
     const title = String(s.title || "");
+    const describe = String(s.describe || "");
     const bulletsPreview = (Array.isArray(s.content) ? s.content : []).slice(0, 4).map((b: any) => String(b ?? "")).join("\n");
-    const contentSig = simpleHash(`${slideType}|${title}|${bulletsPreview}`);
+    const contentSig = simpleHash(`${slideType}|${title}|${describe}|${bulletsPreview}`);
 
     // Include a content signature so caching doesn't wrongly conflate unrelated slides.
     const cacheKey = `layout:${deckTitle}:${i}:${slideType}:${hasImage ? 1 : 0}:${stats.count}:${stats.maxLen}:${Math.round(stats.totalLen / 50)}:${contentSig}`;

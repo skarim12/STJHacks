@@ -21,6 +21,8 @@ export interface SlideStructure {
   content: string[];
   notes: string;
   suggestedLayout: string;
+  /** Optional user-provided description (used for image search/generation + layout hints). */
+  describe?: string;
 }
 
 export interface PresentationOutline {
@@ -28,6 +30,8 @@ export interface PresentationOutline {
   slides: SlideStructure[];
   colorScheme: ColorScheme;
   overallTheme: string;
+  /** Optional deck-level user description (applies as a hint across slides). */
+  describe?: string;
 }
 
 export interface ResearchResult {

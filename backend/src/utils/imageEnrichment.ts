@@ -49,7 +49,9 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
 
       const query = buildDefaultImageQuery({
         deckTitle: outline?.title,
+        deckDescribe: outline?.describe,
         slideTitle: s?.title,
+        slideDescribe: s?.describe,
         bullets: Array.isArray(s?.content) ? s.content : [],
       });
       if (!query) continue;

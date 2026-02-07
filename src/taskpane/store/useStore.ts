@@ -42,6 +42,9 @@ interface AppState {
   externalImagesEnabled: boolean;
   generatedImagesEnabled: boolean;
 
+  // Optional deck-wide description hint (used for images/layout)
+  deckDescribe: string;
+
   // Setters
   setOutline: (outline: PresentationOutline | null) => void;
   setSlides: (slides: SlideStructure[]) => void;
@@ -51,6 +54,8 @@ interface AppState {
   setSelectedTemplate: (tpl: Template | null) => void;
   setExternalImagesEnabled: (enabled: boolean) => void;
   setGeneratedImagesEnabled: (enabled: boolean) => void;
+  setDeckDescribe: (describe: string) => void;
+  setSlideDescribe: (index: number, describe: string) => void;
 
   // Flows
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
@@ -85,6 +90,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedTemplate: null,
   externalImagesEnabled: false,
   generatedImagesEnabled: false,
+  deckDescribe: "",
 
   setOutline: (outline) => set({ outline }),
   setSlides: (slides) => set({ slides }),
@@ -94,12 +100,27 @@ export const useStore = create<AppState>((set, get) => ({
   setSelectedTemplate: (tpl) => set({ selectedTemplate: tpl }),
   setExternalImagesEnabled: (enabled) => set({ externalImagesEnabled: enabled }),
   setGeneratedImagesEnabled: (enabled) => set({ generatedImagesEnabled: enabled }),
+  setDeckDescribe: (describe) => {
+    set({ deckDescribe: describe });
+    const current = get().outline;
+    if (current) {
+      set({ outline: { ...current, describe }, slides: current.slides });
+    }
+  },
+  setSlideDescribe: (index, describe) => {
+    const current = get().outline;
+    if (!current) return;
+    const slides = current.slides.map((s, i) => (i === index ? { ...s, describe } : s));
+    set({ outline: { ...current, slides }, slides });
+  },
 
   generateFromIdea: async (idea: string, prefs?: UserPreferences) => {
     set({ generating: true, error: null });
     try {
       const outline = await get().aiService.generatePresentationOutline(idea, prefs);
-      set({ outline, slides: outline.slides });
+      const deckDescribe = get().deckDescribe?.trim();
+      const withDescribe = deckDescribe ? { ...outline, describe: deckDescribe } : outline;
+      set({ outline: withDescribe, slides: withDescribe.slides });
     } catch (err: any) {
       set({ error: err?.message || "Failed to generate outline" });
     } finally {
@@ -221,7 +242,9 @@ export const useStore = create<AppState>((set, get) => ({
     set({ generating: true, error: null });
     try {
       const { outline, extractedText } = await get().aiService.importPptx(file);
-      set({ outline, slides: outline.slides, importedFileName: file.name, extractedText });
+      const deckDescribe = get().deckDescribe?.trim();
+      const withDescribe = deckDescribe ? { ...outline, describe: deckDescribe } : outline;
+      set({ outline: withDescribe, slides: withDescribe.slides, importedFileName: file.name, extractedText });
     } catch (err: any) {
       set({ error: err?.message || "Failed to import PPTX" });
     } finally {

@@ -6,6 +6,8 @@ export type Slide = {
   content?: string[];
   notes?: string;
   suggestedLayout?: string;
+  // Optional user-provided description (for images/layout hints)
+  describe?: string;
   // Optional embedded image (data URI). Only set when explicitly enabled.
   imageDataUri?: string;
   imageCredit?: string;
@@ -17,6 +19,8 @@ export type Slide = {
 export type Outline = {
   title?: string;
   overallTheme?: string;
+  // Optional deck-level description (for image/layout hints)
+  describe?: string;
   colorScheme?: {
     primary?: string;
     secondary?: string;

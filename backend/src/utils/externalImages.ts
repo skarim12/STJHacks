@@ -196,11 +196,18 @@ export async function fetchSlideImageFromWikimedia(opts: {
 
 export function buildDefaultImageQuery(params: {
   deckTitle?: string;
+  deckDescribe?: string;
   slideTitle?: string;
+  slideDescribe?: string;
   bullets?: string[];
 }): string {
-  const parts = [params.slideTitle, params.deckTitle, ...(params.bullets || []).slice(0, 2)].filter(
-    (p): p is string => typeof p === "string" && p.trim().length > 0
-  );
+  const parts = [
+    params.slideDescribe,
+    params.slideTitle,
+    params.deckDescribe,
+    params.deckTitle,
+    ...(params.bullets || []).slice(0, 2),
+  ].filter((p): p is string => typeof p === "string" && p.trim().length > 0);
+
   return parts.map((p) => safeQueryPart(p)).filter(Boolean).join(" ");
 }

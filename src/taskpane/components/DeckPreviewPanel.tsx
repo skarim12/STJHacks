@@ -7,6 +7,7 @@ import {
   MessageBar,
   MessageBarType,
   Toggle,
+  TextField,
 } from "@fluentui/react";
 import { useStore } from "../store/useStore";
 
@@ -18,6 +19,8 @@ export const DeckPreviewPanel: React.FC = () => {
     setExternalImagesEnabled,
     generatedImagesEnabled,
     setGeneratedImagesEnabled,
+    deckDescribe,
+    setDeckDescribe,
   } = useStore();
   const [loading, setLoading] = useState(false);
   const [html, setHtml] = useState<string>("");
@@ -98,6 +101,13 @@ export const DeckPreviewPanel: React.FC = () => {
           inlineLabel
         />
       </Stack>
+
+      <TextField
+        label="Custom describe (applies deck-wide)"
+        placeholder='Optional. Example: "Use healthcare imagery, modern minimal style"'
+        value={deckDescribe}
+        onChange={(_, v) => setDeckDescribe(v || "")}
+      />
 
       {!outline && (
         <MessageBar messageBarType={MessageBarType.info}>
