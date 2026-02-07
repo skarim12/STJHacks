@@ -1,29 +1,26 @@
 import { Router } from "express";
 import axios from "axios";
-import dotenv from "dotenv";
-
-dotenv.config();
+import { config } from "../config/config";
 
 const router = Router();
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
 function headers() {
-  if (!API_KEY) throw new Error("ANTHROPIC_API_KEY not set");
+  if (!config.claudeApiKey) throw new Error("CLAUDE_API_KEY not set");
   return {
-    "x-api-key": API_KEY,
+    "x-api-key": config.claudeApiKey,
     "anthropic-version": "2023-06-01",
     "content-type": "application/json",
   };
 }
 
-async function anthropicJsonRequest(system: string, user: string, maxTokens = 4096) {
+async function anthropicJsonRequest(system: string, user: string, maxTokens?: number) {
   const response = await axios.post(
     ANTHROPIC_URL,
     {
-      model: "claude-3.5-sonnet",
-      max_tokens: maxTokens,
+      model: config.defaultModel,
+      max_tokens: maxTokens ?? config.maxTokens,
       temperature: 0.5,
       system,
       messages: [{ role: "user", content: user }],
@@ -39,7 +36,6 @@ async function anthropicJsonRequest(system: string, user: string, maxTokens = 40
   const first = content[0];
   const text = typeof first === "object" && first && "text" in first ? (first as any).text : String(first);
 
-  // Backend requires STRICT JSON; parse it.
   return JSON.parse(text);
 }
 

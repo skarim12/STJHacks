@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import apiRoutes from "./routes/api";
 import { authMiddleware } from "./middleware/auth";
-import { rateLimit } from "./middleware/rateLimit";
+import { apiLimiter } from "./middleware/rateLimit";
 
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
@@ -14,8 +14,9 @@ app.use(
   })
 );
 
+// Auth first (if you extend it), then rate limiting, then routes
 app.use(authMiddleware);
-app.use(rateLimit);
+app.use("/api", apiLimiter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
