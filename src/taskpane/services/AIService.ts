@@ -10,7 +10,9 @@ import type {
 } from "../types";
 import { buildOutlinePrompt } from "../utils/promptBuilder";
 
-const API_BASE = process.env.BACKEND_URL || "http://localhost:4000/api";
+const API_BASE =
+  (typeof window !== "undefined" && (window as any).__BACKEND_URL__) ||
+  "http://localhost:4000/api";
 
 export class AIService {
   async generatePresentationOutline(

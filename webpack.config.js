@@ -2,6 +2,7 @@ const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const devCerts = require("office-addin-dev-certs");
+const webpack = require("webpack");
 
 async function getHttpsOptions() {
   const httpsOptions = await devCerts.getHttpsServerOptions();
@@ -50,6 +51,9 @@ module.exports = async () => {
       ],
     },
     plugins: [
+      new webpack.DefinePlugin({
+        "window.__BACKEND_URL__": JSON.stringify(process.env.BACKEND_URL || ""),
+      }),
       new HtmlWebpackPlugin({
         filename: "taskpane.html",
         template: "./src/taskpane/taskpane.html",
@@ -71,6 +75,11 @@ module.exports = async () => {
           { from: "assets", to: "assets" },
         ],
       }),
+      
+      // If you prefer setting BACKEND_URL via a .env file at the repo root,
+      // install dotenv-webpack and wire it here. For now, DefinePlugin reads
+      // process.env.BACKEND_URL at build time only.
+
     ],
     devServer: {
       port: 3000,

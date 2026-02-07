@@ -1,5 +1,7 @@
 export class StreamingService {
-  private baseUrl = process.env.BACKEND_URL || "http://localhost:4000";
+  private baseUrl =
+    (typeof window !== "undefined" && (window as any).__BACKEND_URL__) ||
+    "http://localhost:4000";
 
   streamOutline(topic: string, onChunk: (text: string) => void, onEnd: () => void) {
     const url = `${this.baseUrl}/stream/outline-stream?topic=${encodeURIComponent(topic)}`;
