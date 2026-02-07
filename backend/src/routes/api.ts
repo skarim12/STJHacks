@@ -55,8 +55,13 @@ async function anthropicJsonRequest(
     if (axios.isAxiosError(err)) {
       const status = err.response?.status;
       const data = err.response?.data;
+      const hint =
+        status === 404 && typeof (data as any)?.error?.message === "string" &&
+        String((data as any).error.message).toLowerCase().includes("model")
+          ? " (Hint: set a valid CLAUDE_MODEL in backend/.env, or use claude-3-5-sonnet-latest)"
+          : "";
       throw new Error(
-        `Anthropic request failed (status ${status}). Response: ${JSON.stringify(data)}`
+        `Anthropic request failed (status ${status}). Response: ${JSON.stringify(data)}${hint}`
       );
     }
     throw err;
