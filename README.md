@@ -66,16 +66,22 @@ PORT=4000
 From the project root:
 
 ```bash
-npm run dev
+python run_dev.py
 ```
 
-(That starts the backend on `:4000` and the frontend dev server on `:3000` together.)
+That will:
+- install dependencies (root + backend)
+- start backend on `:4000`
+- start frontend dev server on `:3000`
 
 If you ever need to run them separately:
 
 ```bash
-npm run backend:dev
-npm run frontend:dev
+cd backend
+npm run dev
+
+cd ..
+npm run start
 ```
 
 The dev server hosts:

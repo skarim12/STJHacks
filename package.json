@@ -14,7 +14,7 @@
     "build": "webpack --mode production --config webpack.config.js"
   },
   "dependencies": {
-    "@fluentui/react": "^9.0.0",
+    "@fluentui/react": "^8.124.3",
     "axios": "^1.7.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
