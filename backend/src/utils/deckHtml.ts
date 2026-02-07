@@ -349,6 +349,52 @@ export function wrapDeckHtml(slideHtml: string, outline: Outline): string {
 
     .box{ min-width: 0; min-height: 0; }
 
+    .accent-bar{
+      width:100%;
+      height:100%;
+      border-radius: 16px;
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
+      opacity: .92;
+      box-shadow: 0 14px 40px rgba(0,0,0,.18);
+    }
+
+    .statement{
+      font-size: 56px;
+      line-height: 1.12;
+      font-weight: var(--w-bold);
+      letter-spacing: -0.01em;
+      margin: 0;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fullbleed{
+      position:absolute;
+      inset:0;
+      z-index:0;
+    }
+
+    .fullbleed img{
+      width:100%;
+      height:100%;
+      object-fit: cover;
+      display:block;
+      filter: saturate(1.05) contrast(1.05);
+    }
+
+    .fullbleed::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background: linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,.55));
+      pointer-events:none;
+    }
+
+    .safe{ z-index: 1; }
+
     .header{ display:flex; flex-direction:column; gap:14px; }
 
     .kicker{
@@ -659,7 +705,10 @@ function renderBullets(bullets: string[], max: number): { html: string; overflow
 }
 
 function renderSlideSection(
-  inner: string,
+  opts: {
+    safeInner: string;
+    outer?: string;
+  },
   index: number,
   density: "normal" | "compact" | "dense",
   deckTitle?: string,
@@ -669,7 +718,8 @@ function renderSlideSection(
   const dataLook = escapeHtml(String(look || "default"));
   return `
 <section class="slide" data-density="${density}" data-look="${dataLook}">
-  <div class="safe">${inner}
+  ${opts.outer || ""}
+  <div class="safe">${opts.safeInner}
   </div>
   <div class="footer"><div>${left}</div><div>${index + 1}</div></div>
 </section>`;
@@ -728,7 +778,33 @@ export function outlineToStyledSlides(outline: Outline): string {
       right ? `${right.html}${right.overflowNote}` : ""
     }</div>`;
 
+    const bulletBoxes = variant.boxes.filter((b) => b.kind === "bulletsCard");
+    const parts = (() => {
+      const n = Math.max(1, Math.min(3, bulletBoxes.length || 1));
+      const out: string[][] = Array.from({ length: n }, () => []);
+      // Balanced split: 0,1,2,0,1,2...
+      for (let j = 0; j < bullets.length; j++) out[j % n].push(bullets[j]);
+      return out;
+    })();
+
+    const bulletsCardFor = (partIndex: number): string => {
+      const maxPerCard = bulletBoxes.length > 1 ? (density === "dense" ? 5 : density === "compact" ? 6 : 6) : maxBullets;
+      const bb = renderBullets(parts[partIndex] || [], maxPerCard);
+      return `<div class="card"${bodyStyle}>${bb.html}${bb.overflowNote}</div>`;
+    };
+
+    const statementText = clampText(stripUnsafe(bullets[0] || s?.notes || s?.describe || ""), 220);
+    const statementCard = `<div class="card accent"${bodyStyle}><p class="statement">${escapeHtml(statementText || title || "Statement")}</p></div>`;
+
+    const isFullBleed = variant.boxes.some((b) => b.kind === "fullBleedImage");
+    const fullBleedOuter = isFullBleed && s?.imageDataUri
+      ? `<div class="fullbleed"><img alt="" src="${escapeHtml(s.imageDataUri)}" /></div>`
+      : "";
+
+    let bulletPartCursor = 0;
+
     const boxesHtml = variant.boxes
+      .filter((b) => b.kind !== "fullBleedImage")
       .map((box) => {
         const style = gridStyle(box.rect);
         let inner = "";
@@ -737,7 +813,7 @@ export function outlineToStyledSlides(outline: Outline): string {
             inner = headerHtml;
             break;
           case "bulletsCard":
-            inner = bulletsCard;
+            inner = bulletsCardFor(Math.min(parts.length - 1, bulletPartCursor++));
             break;
           case "imageCard":
             inner = imageHtml;
@@ -751,6 +827,12 @@ export function outlineToStyledSlides(outline: Outline): string {
           case "comparisonRight":
             inner = comparisonRightCard;
             break;
+          case "statementCard":
+            inner = statementCard;
+            break;
+          case "accentBar":
+            inner = `<div class="accent-bar"></div>`;
+            break;
           default:
             inner = bulletsCard;
         }
@@ -759,9 +841,9 @@ export function outlineToStyledSlides(outline: Outline): string {
       .join("");
 
     const decor = renderShapes((s as any)?.stylePlan);
-    const inner = `${decor}<div class="layout-grid">${boxesHtml}</div>`;
+    const safeInner = `${decor}<div class="layout-grid">${boxesHtml}</div>`;
     const look = (s as any)?.look || (outline as any)?.look || "default";
-    return renderSlideSection(inner, i, density, deckTitle, look);
+    return renderSlideSection({ safeInner, outer: fullBleedOuter }, i, density, deckTitle, look);
   };
 
   return slides
@@ -779,7 +861,7 @@ export function outlineToStyledSlides(outline: Outline): string {
         const header = renderHeader({ kicker, title, subtitle: subtitle || undefined });
         const body = `<div class="body"><div class="card"><p class="subtitle">${escapeHtml(clampText(stripUnsafe(s?.notes || ""), 200))}</p></div></div>`;
         const density: "normal" | "compact" | "dense" = "normal";
-        return renderSlideSection(`${header}${body}`, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
+        return renderSlideSection({ safeInner: `${header}${body}` }, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
       }
 
       // Keep prior fallback logic for non-planned slides.
@@ -798,7 +880,7 @@ export function outlineToStyledSlides(outline: Outline): string {
     </div>
   </div>`;
 
-      return renderSlideSection(`${header}${body}`, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
+      return renderSlideSection({ safeInner: `${header}${body}` }, i, density, outline?.title, (s as any)?.look || (outline as any)?.look || "default");
     })
     .join("\n");
 }

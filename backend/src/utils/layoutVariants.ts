@@ -5,6 +5,9 @@ export type LayoutBoxKind =
   | "quoteCard"
   | "comparisonLeft"
   | "comparisonRight"
+  | "statementCard"
+  | "accentBar"
+  | "fullBleedImage"
   | "placeholder";
 
 export type GridRect = {
@@ -38,6 +41,32 @@ export const LAYOUT_VARIANTS: LayoutVariant[] = [
     ],
   },
   {
+    name: "content.twoColBullets",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "bulletsLeft", kind: "bulletsCard", rect: { colStart: 1, colSpan: 6, rowStart: 3, rowSpan: 6 } },
+      { id: "bulletsRight", kind: "bulletsCard", rect: { colStart: 7, colSpan: 6, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    name: "content.leftAccentBar",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "bar", kind: "accentBar", rect: { colStart: 1, colSpan: 1, rowStart: 1, rowSpan: 8 } },
+      { id: "header", kind: "header", rect: { colStart: 2, colSpan: 11, rowStart: 1, rowSpan: 2 } },
+      { id: "body", kind: "bulletsCard", rect: { colStart: 2, colSpan: 11, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    name: "content.statement",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "statement", kind: "statementCard", rect: { colStart: 1, colSpan: 12, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
     name: "content.splitRightHero",
     slideTypes: ["content"],
     boxes: [
@@ -57,6 +86,16 @@ export const LAYOUT_VARIANTS: LayoutVariant[] = [
   },
 
   // IMAGE PLACEHOLDER (or IMAGE)
+  {
+    name: "image.fullBleed",
+    slideTypes: ["imagePlaceholder"],
+    boxes: [
+      // full-bleed image is handled specially by renderer/PPTX; this box just flags it.
+      { id: "bg", kind: "fullBleedImage", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 8 } },
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "body", kind: "bulletsCard", rect: { colStart: 1, colSpan: 6, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
   {
     name: "image.hero",
     slideTypes: ["imagePlaceholder"],

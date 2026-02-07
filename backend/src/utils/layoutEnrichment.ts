@@ -33,14 +33,33 @@ function heuristicVariant(slideType: string, hasImage: boolean, bullets: { count
   if (type === "title") return "title.center";
   if (type === "comparison") return "comparison.twoCards";
   if (type === "quote") return hasImage ? "quote.splitImage" : "quote.full";
-  if (type === "imagePlaceholder") return bullets.count > 4 ? "image.captionRight" : "image.hero";
+  if (type === "imagePlaceholder") {
+    const veryShort = bullets.count <= 3 && bullets.totalLen <= 240 && bullets.maxLen <= 95;
+    if (veryShort) return "image.fullBleed";
+    return bullets.count > 4 ? "image.captionRight" : "image.hero";
+  }
 
   // content
+  const veryShort = bullets.count <= 3 && bullets.totalLen <= 240 && bullets.maxLen <= 95;
+  const moderate = bullets.count <= 6 && bullets.totalLen <= 520 && bullets.maxLen <= 135;
+  const hasEnoughForTwoCol = bullets.count >= 6 && bullets.totalLen <= 720 && bullets.maxLen <= 125;
+
+  // Statement layout when the slide is basically one big idea.
+  if (veryShort && bullets.count <= 2) return "content.statement";
+
+  // Two column bullets for medium density lists.
+  if (hasEnoughForTwoCol) return "content.twoColBullets";
+
   if (hasImage) {
     // Split layouts only look good when text is truly light.
-    if (bullets.count <= 5 && bullets.totalLen <= 420 && bullets.maxLen < 110) return "content.splitRightHero";
+    if (moderate && bullets.count <= 5 && bullets.totalLen <= 420 && bullets.maxLen < 110) return "content.splitRightHero";
+
     return "content.singleCard";
   }
+
+  // Accent bar gives some motion to otherwise plain content.
+  if (moderate) return "content.leftAccentBar";
+
   return "content.singleCard";
 }
 
@@ -77,6 +96,10 @@ function validateAndRepairVariant(opts: {
     if (slideType === "quote") return "quote.full";
   }
 
+  // Variant-specific sanity.
+  if (opts.chosen === "content.twoColBullets" && stats.count < 5) return "content.singleCard";
+  if (opts.chosen === "content.statement" && stats.count > 4) return "content.singleCard";
+
   // Keep chosen if it exists and is allowed elsewhere.
   return opts.chosen;
 }
@@ -86,6 +109,7 @@ export async function enrichOutlineWithLayouts(outline: any, opts: LayoutEnrichm
   const deckTitle = String(outline?.title || "").slice(0, 80);
 
   // Always-on: every slide gets a layout plan.
+  let fullBleedUsed = 0;
   for (let i = 0; i < slides.length; i++) {
     const s = slides[i];
     if (!s) continue;
@@ -148,6 +172,12 @@ ${(Array.isArray(s.content) ? s.content : []).slice(0, 4).map((b: any) => `- ${S
 
     // Deterministic repair pass: prevents broken layouts.
     chosen = validateAndRepairVariant({ slideType, hasImage, stats, chosen });
+
+    // Limit full-bleed hero images to 1–3 per deck (recommended: 2).
+    if (chosen === "image.fullBleed") {
+      if (fullBleedUsed >= 2) chosen = "image.hero";
+      else fullBleedUsed++;
+    }
 
     // Ensure repaired choice is still allowed; else drop to heuristic.
     if (!variants.some((vv) => vv.name === chosen)) chosen = fallback;
