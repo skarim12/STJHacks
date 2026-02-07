@@ -4,22 +4,28 @@
           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
           xsi:type="TaskPaneApp">
-  <Id>c8fda58d-b924-4c2b-b71d-222222222222</Id>
+  <!-- Use a stable GUID here; do not change after shipping -->
+  <Id>YOUR-PRODUCTION-GUID-HERE-0000-000000000000</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>Your Company</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="PowerPoint AI Assistant" />
-  <Description DefaultValue="Transform rough ideas into polished presentations using AI." />
-  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png" />
-  <SupportUrl DefaultValue="https://your-support.example" />
+  <DisplayName DefaultValue="AI Slide Assistant" />
+  <Description DefaultValue="Transform ideas into polished presentations." />
+  <IconUrl DefaultValue="https://yourapp.com/assets/icon-32.png" />
+  <SupportUrl DefaultValue="https://yourapp.com/support" />
+
   <Hosts>
     <Host Name="Presentation" />
   </Hosts>
+
+  <!-- Production taskpane URL -->
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+    <SourceLocation DefaultValue="https://yourapp.com/taskpane.html" />
   </DefaultSettings>
+
   <Permissions>ReadWriteDocument</Permissions>
 
+  <!-- Command surface + resources -->
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
                     xsi:type="ov:VersionOverrides"
                     Version="1.0">
@@ -55,20 +61,22 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="icon16" DefaultValue="https://localhost:3000/assets/icon-16.png" />
-        <bt:Image id="icon32" DefaultValue="https://localhost:3000/assets/icon-32.png" />
-        <bt:Image id="icon64" DefaultValue="https://localhost:3000/assets/icon-64.png" />
-        <bt:Image id="icon128" DefaultValue="https://localhost:3000/assets/icon-128.png" />
+        <bt:Image id="icon16" DefaultValue="https://yourapp.com/assets/icon-16.png" />
+        <bt:Image id="icon32" DefaultValue="https://yourapp.com/assets/icon-32.png" />
+        <bt:Image id="icon64" DefaultValue="https://yourapp.com/assets/icon-64.png" />
+        <bt:Image id="icon128" DefaultValue="https://yourapp.com/assets/icon-128.png" />
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="residTaskpaneUrl" DefaultValue="https://localhost:3000/taskpane.html" />
-        <bt:Url id="residCommandsUrl" DefaultValue="https://localhost:3000/commands.html" />
+        <!-- Taskpane HTML in production -->
+        <bt:Url id="residTaskpaneUrl" DefaultValue="https://yourapp.com/taskpane.html" />
+        <!-- Commands HTML (for add-in commands entrypoint) -->
+        <bt:Url id="residCommandsUrl" DefaultValue="https://yourapp.com/commands.html" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="residPptAiButtonLabel" DefaultValue="AI Assistant" />
+        <bt:String id="residPptAiButtonLabel" DefaultValue="AI Slide Assistant" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="residPptAiButtonDesc" DefaultValue="Open the AI assistant task pane." />
+        <bt:String id="residPptAiButtonDesc" DefaultValue="Open the AI assistant to turn ideas into polished presentations." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
