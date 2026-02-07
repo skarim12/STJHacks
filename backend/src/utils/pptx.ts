@@ -1,5 +1,5 @@
 import PptxGenJS from "pptxgenjs";
-import { enforceThemeStyle } from "./themeStyle";
+import { getVariantByName, type LayoutVariant } from "./layoutVariants";
 
 function hexOrDefault(h: any, fallback: string): string {
   const s = String(h || "").trim();
@@ -11,19 +11,35 @@ function pptxColor(hex: string): string {
 }
 
 /**
- * PPTX export with basic theming + optional images.
- * Still deterministic: uses the precomputed layoutPlan variant names.
+ * PPTX export with theming + images + variant-aware layout.
+ * Deterministic: relies on layoutPlan.variant + stylePlan.
  */
 export async function buildPptxBuffer(outline: any): Promise<Buffer> {
-  enforceThemeStyle(outline);
-
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
 
   const scheme = outline?.colorScheme || {};
-  const bg = hexOrDefault(scheme.background, "#FFFFFF");
-  const text = hexOrDefault(scheme.text, "#111111");
+  const bg = hexOrDefault(scheme.background, "#0B1220");
+  const text = hexOrDefault(scheme.text, "#FFFFFF");
   const accent = hexOrDefault(scheme.accent || scheme.primary, "#0078D4");
+
+  const SLIDE_W = 13.33;
+  const SLIDE_H = 7.5;
+
+  // Approximate the HTML safe margins.
+  const SAFE_X = 0.85;
+  const SAFE_Y = 0.65;
+  const SAFE_W = SLIDE_W - 2 * SAFE_X;
+  const SAFE_H = SLIDE_H - 2 * SAFE_Y;
+
+  const rectToBox = (rect: { colStart: number; colSpan: number; rowStart: number; rowSpan: number }) => {
+    const x = SAFE_X + ((rect.colStart - 1) / 12) * SAFE_W;
+    const w = (rect.colSpan / 12) * SAFE_W;
+    const y = SAFE_Y + ((rect.rowStart - 1) / 8) * SAFE_H;
+    const h = (rect.rowSpan / 8) * SAFE_H;
+    const pad = 0.08;
+    return { x: x + pad, y: y + pad, w: Math.max(0.2, w - 2 * pad), h: Math.max(0.2, h - 2 * pad) };
+  };
 
   const addBg = (slide: any) => {
     try {
@@ -41,7 +57,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     slide.addShape(pptx.ShapeType.rect, {
       x: 0,
       y: 0,
-      w: 13.33,
+      w: SLIDE_W,
       h: 0.18,
       fill: { color: pptxColor(accent) },
       line: { color: pptxColor(accent) },
@@ -76,7 +92,8 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     const slide = pptx.addSlide();
     addBg(slide);
 
-    const variant = String(s?.layoutPlan?.variant || "content.singleCard");
+    const variantName = String(s?.layoutPlan?.variant || "content.singleCard");
+    const variant: LayoutVariant | null = getVariantByName(variantName);
     const hasImage = typeof s?.imageDataUri === "string" && s.imageDataUri.startsWith("data:image/");
 
     const sp = s?.stylePlan || {};
@@ -91,217 +108,122 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     const bodyFontSize = Number(bodyPlan?.fontSize);
     const bodyColor = hexOrDefault(bodyPlan?.color, text);
 
-    // Header
-    slide.addText(String(s?.title || ""), {
-      x: 0.7,
-      y: 0.45,
-      w: 12.0,
-      h: 0.6,
-      fontFace: titleFontFace,
-      fontSize: Number.isFinite(titleFontSize) ? Math.max(18, Math.min(48, Math.round(titleFontSize * 0.48))) : 30,
-      bold: String(titlePlan?.weight || "bold") === "bold",
-      color: pptxColor(titleColor),
-    });
-
-    // Accent divider
-    slide.addShape(pptx.ShapeType.rect, {
-      x: 0.7,
-      y: 1.15,
-      w: 6.0,
-      h: 0.04,
-      fill: { color: pptxColor(accent) },
-      line: { color: pptxColor(accent) },
-    });
-
     const content: string[] = Array.isArray(s?.content) ? s.content : [];
-    const bulletText = content.map((c) => `• ${String(c)}`).join("\n");
 
-    // Layout mapping from variants → regions (wide layout: 13.33 x 7.5 inches)
-    const regions = (() => {
-      switch (variant) {
-        case "content.twoColBullets":
-          return {
-            bulletsLeft: { x: 0.9, y: 1.45, w: 5.9, h: 5.7 },
-            bulletsRight: { x: 7.2, y: 1.45, w: 5.9, h: 5.7 },
-          };
-        case "content.leftAccentBar":
-          return {
-            accentBar: { x: 0.55, y: 0.55, w: 0.20, h: 6.7 },
-            bullets: { x: 0.95, y: 1.45, w: 12.0, h: 5.7 },
-          };
-        case "content.statement":
-          return {
-            statement: { x: 0.95, y: 1.65, w: 12.0, h: 5.3 },
-          };
-        case "image.fullBleed":
-          return {
-            imageFull: { x: 0, y: 0, w: 13.33, h: 7.5 },
-            overlay: { x: 0.85, y: 1.35, w: 6.3, h: 5.9 },
-          };
-        default:
-          break;
-      }
-
-      if (variant.includes("split") && hasImage) {
-        // bullets left, image right
-        return {
-          bullets: { x: 0.9, y: 1.45, w: 7.2, h: 5.7 },
-          image: { x: 8.35, y: 1.45, w: 4.7, h: 5.7 },
-        };
-      }
-      if (variant.startsWith("image.") && hasImage) {
-        // image big, bullets small
-        return {
-          image: { x: 0.9, y: 1.45, w: 8.2, h: 5.7 },
-          bullets: { x: 9.25, y: 1.45, w: 3.8, h: 5.7 },
-        };
-      }
-      if (variant.startsWith("quote.splitImage") && hasImage) {
-        return {
-          bullets: { x: 0.9, y: 1.45, w: 7.2, h: 5.7 },
-          image: { x: 8.35, y: 1.45, w: 4.7, h: 5.7 },
-        };
-      }
-      // default: full-width text
-      return { bullets: { x: 0.9, y: 1.45, w: 12.1, h: 5.7 } };
-    })();
-
-    const baseBodySize = Number.isFinite(bodyFontSize) ? Math.max(14, Math.min(28, Math.round(bodyFontSize * 0.42))) : 18;
-
-    // Text
-    if ((regions as any).statement) {
-      const statement = String(content[0] || s?.notes || "").trim();
-      slide.addText(statement, {
-        ...(regions as any).statement,
-        fontFace: bodyFontFace,
-        fontSize: Math.max(22, Math.min(40, Math.round(baseBodySize * 1.6))),
-        bold: true,
-        color: pptxColor(bodyColor),
-        valign: "top",
-      });
-    } else if ((regions as any).bulletsLeft && (regions as any).bulletsRight) {
-      const left: string[] = [];
-      const right: string[] = [];
-      for (let j = 0; j < content.length; j++) (j % 2 === 0 ? left : right).push(content[j]);
-      const leftText = left.map((c) => `• ${String(c)}`).join("\n");
-      const rightText = right.map((c) => `• ${String(c)}`).join("\n");
-      slide.addText(leftText, { ...(regions as any).bulletsLeft, fontFace: bodyFontFace, fontSize: baseBodySize, color: pptxColor(bodyColor), valign: "top" });
-      slide.addText(rightText, { ...(regions as any).bulletsRight, fontFace: bodyFontFace, fontSize: baseBodySize, color: pptxColor(bodyColor), valign: "top" });
-    } else if ((regions as any).overlay) {
-      // Full-bleed overlay panel.
-      slide.addShape(pptx.ShapeType.roundRect, {
-        ...(regions as any).overlay,
-        fill: { color: pptxColor(bg), transparency: 35 },
-        line: { color: pptxColor(bg), transparency: 100 },
-      });
-      slide.addText(bulletText || "", {
-        x: (regions as any).overlay.x + 0.25,
-        y: (regions as any).overlay.y + 0.25,
-        w: (regions as any).overlay.w - 0.5,
-        h: (regions as any).overlay.h - 0.5,
-        fontFace: bodyFontFace,
-        fontSize: baseBodySize,
-        color: pptxColor(bodyColor),
-        valign: "top",
-      });
-    } else {
-      slide.addText(bulletText || "", {
-        x: (regions as any).bullets.x,
-        y: (regions as any).bullets.y,
-        w: (regions as any).bullets.w,
-        h: (regions as any).bullets.h,
-        fontFace: bodyFontFace,
-        fontSize: baseBodySize,
-        color: pptxColor(bodyColor),
-        valign: "top",
-      });
-    }
-
-    // Left accent bar (variant-specific)
-    if ((regions as any).accentBar) {
-      slide.addShape(pptx.ShapeType.roundRect, {
-        ...(regions as any).accentBar,
-        fill: { color: pptxColor(accent) },
-        line: { color: pptxColor(accent) },
-      });
-    }
-
-    // Decorative shapes (AI-drawn) – rendered behind content.
-    const shapes = Array.isArray(sp?.shapes) ? sp.shapes : [];
-    for (const sh of shapes.slice(0, 12)) {
-      const kind = String(sh?.kind || "").toLowerCase();
-      if (kind === "rect") {
-        const x = Math.max(0, Math.min(1, Number(sh?.x ?? 0)));
-        const y = Math.max(0, Math.min(1, Number(sh?.y ?? 0)));
-        const w = Math.max(0.02, Math.min(1, Number(sh?.w ?? 0.2)));
-        const h = Math.max(0.02, Math.min(1, Number(sh?.h ?? 0.1)));
-        const fill = hexOrDefault(sh?.fill, accent);
-        const stroke = sh?.stroke ? hexOrDefault(sh?.stroke, accent) : undefined;
-        const sw = Number(sh?.strokeWidth ?? 0);
-
-        // Map SAFE area to slide inches (roughly match HTML safe margins).
-        const safeX = 0.85;
-        const safeY = 0.65;
-        const safeW = 13.33 - 2 * safeX;
-        const safeH = 7.5 - 2 * safeY;
-
-        slide.addShape(pptx.ShapeType.roundRect, {
-          x: safeX + x * safeW,
-          y: safeY + y * safeH,
-          w: w * safeW,
-          h: h * safeH,
-          fill: { color: pptxColor(fill) },
-          line: stroke && Number.isFinite(sw) && sw > 0 ? { color: pptxColor(stroke), width: Math.min(6, Math.max(1, Math.round(sw / 2))) } : { color: pptxColor(fill), transparency: 100 },
-        });
-      }
-      if (kind === "line") {
-        const x1 = Math.max(0, Math.min(1, Number(sh?.x1 ?? 0)));
-        const y1 = Math.max(0, Math.min(1, Number(sh?.y1 ?? 0)));
-        const x2 = Math.max(0, Math.min(1, Number(sh?.x2 ?? 0.4)));
-        const y2 = Math.max(0, Math.min(1, Number(sh?.y2 ?? 0)));
-        const stroke = hexOrDefault(sh?.stroke, accent);
-        const sw = Number(sh?.strokeWidth ?? 4);
-
-        const safeX = 0.85;
-        const safeY = 0.65;
-        const safeW = 13.33 - 2 * safeX;
-        const safeH = 7.5 - 2 * safeY;
-
-        slide.addShape(pptx.ShapeType.line, {
-          x: safeX + x1 * safeW,
-          y: safeY + y1 * safeH,
-          w: (x2 - x1) * safeW,
-          h: (y2 - y1) * safeH,
-          line: { color: pptxColor(stroke), width: Math.min(10, Math.max(1, Math.round(sw / 2))) },
-        });
-      }
-    }
-
-    // Image
-    if (hasImage && (regions as any).imageFull) {
+    // Full-bleed background image
+    if (variantName === "image.fullBleed" && hasImage) {
       try {
-        slide.addImage({ data: String(s.imageDataUri), ...(regions as any).imageFull });
-        // Dark overlay for legibility (PptxGen transparency is best-effort across viewers).
+        slide.addImage({ data: String(s.imageDataUri), x: 0, y: 0, w: SLIDE_W, h: SLIDE_H });
         slide.addShape(pptx.ShapeType.rect, {
           x: 0,
           y: 0,
-          w: 13.33,
-          h: 7.5,
-          fill: { color: pptxColor("#000000"), transparency: 55 },
-          line: { color: pptxColor("#000000"), transparency: 100 },
+          w: SLIDE_W,
+          h: SLIDE_H,
+          fill: { color: "000000", transparency: 45 },
+          line: { color: "000000", transparency: 100 },
         });
       } catch {
-        // ignore image errors so PPTX still exports
-      }
-    } else if (hasImage && (regions as any).image) {
-      try {
-        slide.addImage({ data: String(s.imageDataUri), ...(regions as any).image });
-      } catch {
-        // ignore image errors so PPTX still exports
+        // ignore
       }
     }
 
-    // Speaker notes (best-effort)
+    const boxes = (variant?.boxes || []) as any[];
+    const fallbackBoxes = [
+      { kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { kind: "bulletsCard", rect: { colStart: 1, colSpan: 12, rowStart: 3, rowSpan: 6 } },
+    ];
+
+    const layoutBoxes = boxes.length ? boxes.filter((b) => b.kind !== "fullBleedImage") : fallbackBoxes;
+
+    // Split bullets across multiple bulletsCard boxes deterministically.
+    const bulletCardCount = layoutBoxes.filter((b) => b.kind === "bulletsCard").length;
+    const parts: string[][] = (() => {
+      const n = Math.max(1, Math.min(3, bulletCardCount || 1));
+      const out: string[][] = Array.from({ length: n }, () => []);
+      for (let j = 0; j < content.length; j++) out[j % n].push(content[j]);
+      return out;
+    })();
+    let bulletCursor = 0;
+
+    for (const b of layoutBoxes) {
+      const kind = String(b.kind);
+      const rect = b.rect;
+      const box = rectToBox(rect);
+
+      if (kind === "accentBar") {
+        slide.addShape(pptx.ShapeType.roundRect, {
+          ...box,
+          fill: { color: pptxColor(accent) },
+          line: { color: pptxColor(accent), transparency: 100 },
+        });
+        continue;
+      }
+
+      if (kind === "header") {
+        slide.addText(String(s?.title || ""), {
+          x: box.x,
+          y: box.y,
+          w: box.w,
+          h: Math.min(box.h, 1.0),
+          fontFace: titleFontFace,
+          fontSize: Number.isFinite(titleFontSize) ? Math.max(18, Math.min(48, Math.round(titleFontSize * 0.48))) : 30,
+          bold: String(titlePlan?.weight || "bold") === "bold",
+          color: pptxColor(titleColor),
+        });
+        slide.addShape(pptx.ShapeType.rect, {
+          x: box.x,
+          y: box.y + Math.min(box.h, 1.0) - 0.06,
+          w: Math.min(5.5, box.w),
+          h: 0.05,
+          fill: { color: pptxColor(accent) },
+          line: { color: pptxColor(accent) },
+        });
+        continue;
+      }
+
+      if (kind === "imageCard" && hasImage && variantName !== "image.fullBleed") {
+        try {
+          slide.addImage({ data: String(s.imageDataUri), x: box.x, y: box.y, w: box.w, h: box.h });
+        } catch {
+          // ignore
+        }
+        continue;
+      }
+
+      if (kind === "statementCard") {
+        const statement = String(content?.[0] || s?.notes || s?.describe || "").trim();
+        slide.addText(statement, {
+          x: box.x,
+          y: box.y,
+          w: box.w,
+          h: box.h,
+          fontFace: titleFontFace,
+          fontSize: 34,
+          bold: true,
+          color: pptxColor(titleColor),
+          valign: "top",
+        });
+        continue;
+      }
+
+      if (kind === "bulletsCard") {
+        const p = parts[Math.min(parts.length - 1, bulletCursor++)] || [];
+        const bulletText = p.map((c) => `• ${String(c)}`).join("\n");
+        slide.addText(bulletText || "", {
+          x: box.x,
+          y: box.y,
+          w: box.w,
+          h: box.h,
+          fontFace: bodyFontFace,
+          fontSize: Number.isFinite(bodyFontSize) ? Math.max(14, Math.min(28, Math.round(bodyFontSize * 0.42))) : 18,
+          color: pptxColor(bodyColor),
+          valign: "top",
+        });
+        continue;
+      }
+    }
+
+    // Notes
     if (s?.notes) {
       try {
         (slide as any).addNotes(String(s.notes));
