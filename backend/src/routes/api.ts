@@ -155,6 +155,25 @@ async function anthropicJsonRequest(
   );
 }
 
+router.get("/models", async (_req, res) => {
+  try {
+    const response = await axios.get("https://api.anthropic.com/v1/models", {
+      headers: headers(),
+    });
+    res.json(response.data);
+  } catch (err: any) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      const data = err.response?.data;
+      return res.status(status || 500).json({
+        error: "Failed to list Anthropic models",
+        details: data || err.message,
+      });
+    }
+    res.status(500).json({ error: "Failed to list Anthropic models", details: err?.message || String(err) });
+  }
+});
+
 router.post("/outline", async (req, res) => {
   try {
     const userIdea = String((req.body as any)?.userIdea || "").trim();
