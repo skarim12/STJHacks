@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "ms-office.officedebugger",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "sivarajanr.office-ui-fabric-snippets"
+  ],
+  "unwantedRecommendations": [
+    "octref.vetur",
+    "Vue.volar"
+  ]
+}
