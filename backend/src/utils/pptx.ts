@@ -1,6 +1,6 @@
 import PptxGenJS from "pptxgenjs";
 import sharp from "sharp";
-import { getVariantByName, type LayoutVariant } from "./layoutVariants";
+import { getVariantByName, type LayoutVariant, variantFamily } from "./layoutVariants";
 
 function hexOrDefault(h: any, fallback: string): string {
   const s = String(h || "").trim();
@@ -130,6 +130,52 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     }
   };
 
+  const DEBUG_OVERLAY = String(process.env.PPTX_DEBUG_OVERLAY || "").toLowerCase() === "true";
+
+  const addDebugOverlay = (slide: any, variantName: string) => {
+    if (!DEBUG_OVERLAY) return;
+    // Safe-area boundary
+    slide.addShape(pptx.ShapeType.rect, {
+      x: SAFE_X,
+      y: SAFE_Y,
+      w: SAFE_W,
+      h: SAFE_H,
+      fill: { color: "FFFFFF", transparency: 100 },
+      line: { color: "FF00FF", transparency: 60, width: 1 },
+    });
+    // 12x8 grid lines
+    for (let c = 1; c < 12; c++) {
+      const x = SAFE_X + (c / 12) * SAFE_W;
+      slide.addShape(pptx.ShapeType.line, {
+        x,
+        y: SAFE_Y,
+        w: 0,
+        h: SAFE_H,
+        line: { color: "FF00FF", transparency: 85, width: 0.5 },
+      });
+    }
+    for (let r = 1; r < 8; r++) {
+      const y = SAFE_Y + (r / 8) * SAFE_H;
+      slide.addShape(pptx.ShapeType.line, {
+        x: SAFE_X,
+        y,
+        w: SAFE_W,
+        h: 0,
+        line: { color: "FF00FF", transparency: 85, width: 0.5 },
+      });
+    }
+
+    slide.addText(`variant: ${variantName}`, {
+      x: SAFE_X,
+      y: 0.1,
+      w: SAFE_W,
+      h: 0.3,
+      fontFace: "Segoe UI",
+      fontSize: 10,
+      color: "FF00FF",
+    });
+  };
+
   // Title slide
   {
     const slide = pptx.addSlide();
@@ -234,6 +280,9 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     })();
     let bulletCursor = 0;
 
+    const fam = variantFamily(variantName);
+    let cardIndex = 0;
+
     for (const b of layoutBoxes) {
       const kind = String(b.kind);
       const rect = b.rect;
@@ -317,7 +366,9 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       }
 
       if (kind === "statementCard") {
-        addCard(slide, box, { fillHex: pptxColor(accent), transparency: 70, strokeHex: pptxColor(accent) });
+        // Callouts should pop: use accent/secondary tints depending on family.
+        const fill = fam === "callout" ? pptxColor(accent) : pptxColor(tint(accent, 0.15));
+        addCard(slide, box, { fillHex: fill, transparency: fam === "callout" ? 55 : 72, strokeHex: pptxColor(accent) });
         const inner = inset(box, 0.18);
         const statement = String(content?.[0] || s?.notes || s?.describe || "").trim();
         slide.addText(statement, {
@@ -326,7 +377,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
           w: inner.w,
           h: inner.h,
           fontFace: titleFontFace,
-          fontSize: 30,
+          fontSize: 28,
           bold: true,
           color: pptxColor(titleColor),
           valign: "top",
@@ -335,20 +386,62 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       }
 
       if (kind === "bulletsCard") {
-        addCard(slide, box);
+        // Card fill variety by family + card index (deterministic).
+        const useAlt = (cardIndex++ % 2) === 1;
+        const baseTint =
+          fam === "grid" ? (useAlt ? tint(secondary, 0.86) : tint(accent, 0.88)) :
+          fam === "stack" ? (useAlt ? tint(accent, 0.90) : tint(secondary, 0.90)) :
+          fam === "asym" ? (useAlt ? tint(accent, 0.92) : tint(secondary, 0.92)) :
+          fam === "accent" ? tint(accent, 0.90) :
+          tint(accent, 0.93);
+
+        addCard(slide, box, { fillHex: pptxColor(baseTint), transparency: panelsKind === "flat" ? 6 : 14 });
         const inner = inset(box, 0.18);
         const p = parts[Math.min(parts.length - 1, bulletCursor++)] || [];
-        const bulletText = p.map((c) => `• ${String(c)}`).join("\n");
-        slide.addText(bulletText || "", {
-          x: inner.x,
-          y: inner.y,
-          w: inner.w,
-          h: inner.h,
-          fontFace: bodyFontFace,
-          fontSize: Number.isFinite(bodyFontSize) ? Math.max(14, Math.min(26, Math.round(bodyFontSize * 0.40))) : 18,
-          color: pptxColor(bodyColor),
-          valign: "top",
-        });
+
+        // Bullet hierarchy: first bullet becomes a lead line (bold) when the card has enough space.
+        const lead = p.length ? String(p[0] || "").trim() : "";
+        const rest = p.slice(1);
+
+        const baseSize = Number.isFinite(bodyFontSize) ? Math.max(14, Math.min(26, Math.round(bodyFontSize * 0.40))) : 18;
+
+        if (lead && rest.length >= 2 && inner.h >= 1.6) {
+          slide.addText(lead, {
+            x: inner.x,
+            y: inner.y,
+            w: inner.w,
+            h: 0.5,
+            fontFace: bodyFontFace,
+            fontSize: Math.min(22, baseSize + 2),
+            bold: true,
+            color: pptxColor(bodyColor),
+            valign: "top",
+          });
+
+          const bulletText = rest.map((c) => `• ${String(c)}`).join("\n");
+          slide.addText(bulletText || "", {
+            x: inner.x,
+            y: inner.y + 0.55,
+            w: inner.w,
+            h: Math.max(0.2, inner.h - 0.55),
+            fontFace: bodyFontFace,
+            fontSize: baseSize,
+            color: pptxColor(bodyColor),
+            valign: "top",
+          });
+        } else {
+          const bulletText = p.map((c) => `• ${String(c)}`).join("\n");
+          slide.addText(bulletText || "", {
+            x: inner.x,
+            y: inner.y,
+            w: inner.w,
+            h: inner.h,
+            fontFace: bodyFontFace,
+            fontSize: baseSize,
+            color: pptxColor(bodyColor),
+            valign: "top",
+          });
+        }
         continue;
       }
 
