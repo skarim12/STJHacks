@@ -126,6 +126,51 @@ export const LAYOUT_VARIANTS: LayoutVariant[] = [
       { id: "bottom", kind: "bulletsCard", rect: { colStart: 2, colSpan: 11, rowStart: 6, rowSpan: 3 } },
     ],
   },
+  {
+    // 2x2 card grid.
+    name: "content.fourCardsGrid",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "c1", kind: "bulletsCard", rect: { colStart: 1, colSpan: 6, rowStart: 3, rowSpan: 3 } },
+      { id: "c2", kind: "bulletsCard", rect: { colStart: 7, colSpan: 6, rowStart: 3, rowSpan: 3 } },
+      { id: "c3", kind: "bulletsCard", rect: { colStart: 1, colSpan: 6, rowStart: 6, rowSpan: 3 } },
+      { id: "c4", kind: "bulletsCard", rect: { colStart: 7, colSpan: 6, rowStart: 6, rowSpan: 3 } },
+    ],
+  },
+  {
+    // Two stacked cards left + one tall card right.
+    name: "content.leftStackRightCard",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "l1", kind: "bulletsCard", rect: { colStart: 1, colSpan: 5, rowStart: 3, rowSpan: 3 } },
+      { id: "l2", kind: "bulletsCard", rect: { colStart: 1, colSpan: 5, rowStart: 6, rowSpan: 3 } },
+      { id: "r", kind: "bulletsCard", rect: { colStart: 6, colSpan: 7, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    // Statement/callout beside bullets.
+    name: "content.calloutRight",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "body", kind: "bulletsCard", rect: { colStart: 1, colSpan: 8, rowStart: 3, rowSpan: 6 } },
+      { id: "callout", kind: "statementCard", rect: { colStart: 9, colSpan: 4, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    // Accent bar + three cards.
+    name: "content.accentThreeCards",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "bar", kind: "accentBar", rect: { colStart: 1, colSpan: 1, rowStart: 1, rowSpan: 8 } },
+      { id: "header", kind: "header", rect: { colStart: 2, colSpan: 11, rowStart: 1, rowSpan: 2 } },
+      { id: "c1", kind: "bulletsCard", rect: { colStart: 2, colSpan: 4, rowStart: 3, rowSpan: 6 } },
+      { id: "c2", kind: "bulletsCard", rect: { colStart: 6, colSpan: 4, rowStart: 3, rowSpan: 6 } },
+      { id: "c3", kind: "bulletsCard", rect: { colStart: 10, colSpan: 3, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
 
   // IMAGE PLACEHOLDER (or IMAGE)
   {

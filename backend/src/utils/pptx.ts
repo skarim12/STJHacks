@@ -52,6 +52,15 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
   const bg = hexOrDefault(scheme.background, "#0B1220");
   const text = hexOrDefault(scheme.text, "#FFFFFF");
   const accent = hexOrDefault(scheme.accent || scheme.primary, "#0078D4");
+  const secondary = hexOrDefault(scheme.secondary, "#A78BFA");
+
+  const themeStyle = outline?.themeStyle || {};
+  const panelsKind = String(themeStyle?.panels || "glass");
+
+  // Panel "card" styling (PPT-friendly approximation of HTML cards).
+  const panelFill = panelsKind === "flat" ? "FFFFFF" : pptxColor("#FFFFFF");
+  const panelTransparency = panelsKind === "flat" ? 6 : 18; // glass -> more transparent
+  const panelRadius = 10;
 
   const SLIDE_W = 13.33;
   const SLIDE_H = 7.5;
@@ -70,6 +79,29 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     const pad = 0.08;
     return { x: x + pad, y: y + pad, w: Math.max(0.2, w - 2 * pad), h: Math.max(0.2, h - 2 * pad) };
   };
+
+  const addCard = (slide: any, box: { x: number; y: number; w: number; h: number }, opts?: { fillHex?: string; transparency?: number; strokeHex?: string }) => {
+    const fillHex = opts?.fillHex || panelFill;
+    const transparency = typeof opts?.transparency === "number" ? opts.transparency : panelTransparency;
+    const strokeHex = opts?.strokeHex || pptxColor(accent);
+
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+      fill: { color: fillHex, transparency },
+      line: { color: strokeHex, transparency: 92 },
+      radius: panelRadius,
+    });
+  };
+
+  const inset = (box: { x: number; y: number; w: number; h: number }, pad: number) => ({
+    x: box.x + pad,
+    y: box.y + pad,
+    w: Math.max(0.2, box.w - pad * 2),
+    h: Math.max(0.2, box.h - pad * 2),
+  });
 
   const addBg = (slide: any) => {
     try {
@@ -227,14 +259,16 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       }
 
       if (kind === "statementCard") {
+        addCard(slide, box, { fillHex: pptxColor(accent), transparency: 70, strokeHex: pptxColor(accent) });
+        const inner = inset(box, 0.18);
         const statement = String(content?.[0] || s?.notes || s?.describe || "").trim();
         slide.addText(statement, {
-          x: box.x,
-          y: box.y,
-          w: box.w,
-          h: box.h,
+          x: inner.x,
+          y: inner.y,
+          w: inner.w,
+          h: inner.h,
           fontFace: titleFontFace,
-          fontSize: 34,
+          fontSize: 30,
           bold: true,
           color: pptxColor(titleColor),
           valign: "top",
@@ -243,15 +277,69 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       }
 
       if (kind === "bulletsCard") {
+        addCard(slide, box);
+        const inner = inset(box, 0.18);
         const p = parts[Math.min(parts.length - 1, bulletCursor++)] || [];
         const bulletText = p.map((c) => `• ${String(c)}`).join("\n");
         slide.addText(bulletText || "", {
-          x: box.x,
-          y: box.y,
-          w: box.w,
-          h: box.h,
+          x: inner.x,
+          y: inner.y,
+          w: inner.w,
+          h: inner.h,
           fontFace: bodyFontFace,
-          fontSize: Number.isFinite(bodyFontSize) ? Math.max(14, Math.min(28, Math.round(bodyFontSize * 0.42))) : 18,
+          fontSize: Number.isFinite(bodyFontSize) ? Math.max(14, Math.min(26, Math.round(bodyFontSize * 0.40))) : 18,
+          color: pptxColor(bodyColor),
+          valign: "top",
+        });
+        continue;
+      }
+
+      if (kind === "quoteCard") {
+        addCard(slide, box);
+        const inner = inset(box, 0.22);
+        const quote = String(content?.[0] || "").trim();
+        const by = String(content?.[1] || "").trim().replace(/^[\-—]\s*/, "");
+        slide.addText(quote ? `“${quote}”` : "", {
+          x: inner.x,
+          y: inner.y,
+          w: inner.w,
+          h: Math.max(0.5, inner.h * 0.7),
+          fontFace: titleFontFace,
+          fontSize: 26,
+          italic: true,
+          color: pptxColor(titleColor),
+          valign: "top",
+        });
+        if (by) {
+          slide.addText(by, {
+            x: inner.x,
+            y: inner.y + inner.h * 0.72,
+            w: inner.w,
+            h: inner.h * 0.25,
+            fontFace: bodyFontFace,
+            fontSize: 16,
+            color: pptxColor(bodyColor),
+            valign: "top",
+          });
+        }
+        continue;
+      }
+
+      if (kind === "comparisonLeft" || kind === "comparisonRight") {
+        addCard(slide, box);
+        const inner = inset(box, 0.18);
+        const half = Math.ceil(content.length / 2);
+        const left = content.slice(0, half);
+        const right = content.slice(half);
+        const items = kind === "comparisonLeft" ? left : right;
+        const bulletText = items.map((c) => `• ${String(c)}`).join("\n");
+        slide.addText(bulletText, {
+          x: inner.x,
+          y: inner.y,
+          w: inner.w,
+          h: inner.h,
+          fontFace: bodyFontFace,
+          fontSize: 16,
           color: pptxColor(bodyColor),
           valign: "top",
         });

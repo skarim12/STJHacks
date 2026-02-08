@@ -48,14 +48,18 @@ function heuristicVariant(slideType: string, hasImage: boolean, bullets: { count
   if (veryShort && bullets.count <= 2) return "content.statement";
 
   // Multi-card compositions for medium/short content.
-  if (veryShort && bullets.count >= 3) return "content.threeCards";
+  if (veryShort && bullets.count >= 4) return "content.fourCardsGrid";
+  if (veryShort && bullets.count === 3) return "content.threeCards";
 
   // Two column bullets for medium density lists.
   if (hasEnoughForTwoCol) return "content.twoColBullets";
 
-  // Prefer asym/two-stack when content can be split.
-  if (moderate && bullets.count >= 4 && bullets.count <= 8 && bullets.totalLen <= 600) return "content.twoStackCards";
-  if (moderate && bullets.count <= 7 && bullets.totalLen <= 520) return "content.asymTwoCards";
+  // Prefer multi-card editorial layouts when content can be split.
+  if (moderate && bullets.count >= 8 && bullets.totalLen <= 720) return "content.fourCardsGrid";
+  if (moderate && bullets.count >= 6 && bullets.count <= 9 && bullets.totalLen <= 720) return "content.leftStackRightCard";
+  if (moderate && bullets.count >= 4 && bullets.count <= 10 && bullets.totalLen <= 720) return "content.twoStackCards";
+  if (moderate && bullets.count <= 8 && bullets.totalLen <= 620) return "content.asymTwoCards";
+  if (moderate && bullets.count <= 6 && bullets.totalLen <= 520) return "content.calloutRight";
 
   // Prefer a split layout for moderately light content so the slide has a dedicated image area.
   if (moderate && bullets.count <= 5 && bullets.totalLen <= 420 && bullets.maxLen < 110) return "content.splitRightHero";
@@ -130,9 +134,13 @@ export async function enrichOutlineWithLayouts(outline: any, opts: LayoutEnrichm
   const pickAltVariant = (slideType: string, stats: any, preferred: string, variants: any[]): string => {
     // Prefer: not recently used, under cap, and composition-changing variants first.
     const ordered = [
+      "content.fourCardsGrid",
       "content.threeCards",
+      "content.leftStackRightCard",
       "content.twoStackCards",
       "content.asymTwoCards",
+      "content.calloutRight",
+      "content.accentThreeCards",
       "content.accentTwoStack",
       "content.twoColBullets",
       "content.leftAccentBar",
