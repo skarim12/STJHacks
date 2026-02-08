@@ -169,8 +169,11 @@ export const IdeaInputPanel: React.FC = () => {
 
       <Text variant="mediumPlus">Workflow</Text>
       <Text variant="small" styles={{ root: { color: "#666" } }}>
-        Step A: Generate content → Step B: Theme (deck-wide visuals) → Step C: Decorate (layouts/images/shapes) → Step D: Export PPTX.
+        Step A: Generate content → Step B: Theme → Step C: Decorate → Step D: Export PPTX.
       </Text>
+      <MessageBar messageBarType={MessageBarType.info}>
+        A: {outline ? "Outline ready" : "Not generated"} | B: {(outline as any)?.themePrompt ? "Theme set" : "No theme"} | C: {(outline as any)?.decoratePrompt ? "Decorated" : "Not decorated"}
+      </MessageBar>
 
       <PrimaryButton
         text={outline ? "Regenerate Presentation" : "Generate Presentation"}

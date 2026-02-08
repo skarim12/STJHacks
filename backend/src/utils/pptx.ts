@@ -130,6 +130,134 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     }
   };
 
+  const motifFromPrompt = (prompt: string): "ribbons" | "grid" | "corners" | "diagonal" => {
+    const p = String(prompt || "").toLowerCase();
+    if (p.includes("grid") || p.includes("dots") || p.includes("dot")) return "grid";
+    if (p.includes("corner") || p.includes("frame")) return "corners";
+    if (p.includes("diagonal") || p.includes("angle") || p.includes("angular")) return "diagonal";
+    if (p.includes("ribbon") || p.includes("ribbons")) return "ribbons";
+    return "ribbons";
+  };
+
+  const h32 = (s: string) => {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0) >>> 0;
+  };
+
+  const pick01 = (seed: string) => {
+    const x = h32(seed) % 1000;
+    return x / 999;
+  };
+
+  const addMotif = (slide: any, seed: string, themePrompt: string) => {
+    // Deterministic PPT-friendly background motif behind content.
+    const motif = motifFromPrompt(themePrompt);
+
+    // Use very subtle tints so content remains readable.
+    const aTint = pptxColor(tint(accent, 0.90));
+    const bTint = pptxColor(tint(secondary, 0.90));
+
+    if (motif === "grid") {
+      // Dot grid using tiny squares (pptx has no dot primitive).
+      const step = 0.55;
+      for (let x = 0.9; x < SLIDE_W - 0.9; x += step) {
+        for (let y = 0.8; y < SLIDE_H - 0.8; y += step) {
+          const t = pick01(`${seed}|${x}|${y}`);
+          if (t > 0.18) continue; // sparse
+          slide.addShape(pptx.ShapeType.rect, {
+            x,
+            y,
+            w: 0.03,
+            h: 0.03,
+            fill: { color: t > 0.09 ? aTint : bTint, transparency: 75 },
+            line: { color: "FFFFFF", transparency: 100 },
+          });
+        }
+      }
+      return;
+    }
+
+    if (motif === "corners") {
+      // Corner frames.
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: 0.3,
+        y: 0.3,
+        w: 2.4,
+        h: 0.22,
+        fill: { color: aTint, transparency: 78 },
+        line: { color: aTint, transparency: 100 },
+      });
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: 0.3,
+        y: 0.3,
+        w: 0.22,
+        h: 1.6,
+        fill: { color: bTint, transparency: 78 },
+        line: { color: bTint, transparency: 100 },
+      });
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: SLIDE_W - 2.7,
+        y: SLIDE_H - 0.55,
+        w: 2.4,
+        h: 0.22,
+        fill: { color: bTint, transparency: 80 },
+        line: { color: bTint, transparency: 100 },
+      });
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: SLIDE_W - 0.52,
+        y: SLIDE_H - 2.1,
+        w: 0.22,
+        h: 1.6,
+        fill: { color: aTint, transparency: 80 },
+        line: { color: aTint, transparency: 100 },
+      });
+      return;
+    }
+
+    if (motif === "diagonal") {
+      // Diagonal bands.
+      slide.addShape(pptx.ShapeType.parallelogram, {
+        x: -1.2,
+        y: 0.9,
+        w: 7.0,
+        h: 0.55,
+        fill: { color: aTint, transparency: 80 },
+        line: { color: aTint, transparency: 100 },
+      });
+      slide.addShape(pptx.ShapeType.parallelogram, {
+        x: 5.5,
+        y: 5.9,
+        w: 7.0,
+        h: 0.55,
+        fill: { color: bTint, transparency: 82 },
+        line: { color: bTint, transparency: 100 },
+      });
+      return;
+    }
+
+    // ribbons
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: -0.8,
+      y: 1.0,
+      w: 4.6,
+      h: 0.42,
+      fill: { color: aTint, transparency: 80 },
+      line: { color: aTint, transparency: 100 },
+    });
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: SLIDE_W - 3.9,
+      y: SLIDE_H - 1.35,
+      w: 4.6,
+      h: 0.42,
+      fill: { color: bTint, transparency: 82 },
+      line: { color: bTint, transparency: 100 },
+    });
+  };
+
   const DEBUG_OVERLAY = String(process.env.PPTX_DEBUG_OVERLAY || "").toLowerCase() === "true";
 
   const addDebugOverlay = (slide: any, variantName: string) => {
@@ -180,6 +308,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
   {
     const slide = pptx.addSlide();
     addBg(slide);
+    addMotif(slide, `title:${String(outline?.title || "")}`, String((outline as any)?.themePrompt || ""));
 
     slide.addShape(pptx.ShapeType.rect, {
       x: 0,
@@ -220,6 +349,10 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     addBg(slide);
 
     const variantName = String(s?.layoutPlan?.variant || "content.singleCard");
+    const themePrompt = String((outline as any)?.themePrompt || (outline as any)?.decoratePrompt || "");
+    addMotif(slide, `slide:${variantName}:${String(s?.title || "")}:${String(s?.describe || "")}`, themePrompt);
+    addDebugOverlay(slide, variantName);
+
     const variant: LayoutVariant | null = getVariantByName(variantName);
     const hasImage = typeof s?.imageDataUri === "string" && s.imageDataUri.startsWith("data:image/");
 
