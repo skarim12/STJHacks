@@ -44,3 +44,14 @@ apiRouter.use('/assets', assetsRouter);
 apiRouter.use('/style', styleRouter);
 apiRouter.use('/export', exportRouter);
 apiRouter.use('/upload', uploadRouter);
+
+// Versioned API (v1) – non-breaking: mount the same handlers under /api/v1/*.
+// This keeps current clients working while providing a stable surface for the web demo.
+apiRouter.use('/v1/deck', deckRouter);
+apiRouter.use('/v1/deck', deckExtrasRouter);
+apiRouter.use('/v1/deck', deckStreamRouter);
+apiRouter.use('/v1/deck', speakerNotesRouter);
+apiRouter.use('/v1/assets', assetsRouter);
+apiRouter.use('/v1/style', styleRouter);
+apiRouter.use('/v1/export', exportRouter);
+apiRouter.use('/v1/upload', uploadRouter);

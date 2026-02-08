@@ -1,11 +1,13 @@
 import React from 'react';
-import type { Slide } from '../taskpane/types/deck';
+import type { Slide, DeckSchema } from '../taskpane/types/deck';
+import { hsl } from '../taskpane/types/deck';
 
 const SLIDE_W = 13.333;
 const SLIDE_H = 7.5;
 
-export function SlideThumb(props: { slide: Slide; widthPx?: number }) {
+export function SlideThumb(props: { slide: Slide; widthPx?: number; deck?: DeckSchema | null }) {
   const { slide } = props;
+  const deck = props.deck;
   const pxW = props.widthPx ?? 260;
   const pxH = Math.round((pxW * SLIDE_H) / SLIDE_W);
   const scale = pxW / SLIDE_W;
@@ -23,11 +25,24 @@ export function SlideThumb(props: { slide: Slide; widthPx?: number }) {
     borderRadius: 10
   });
 
-  const textForKind = (kind: string) => {
+  const textForKind = (kind: string, boxId?: string) => {
     if (kind === 'title') return slide.title || '';
     if (kind === 'subtitle') return (slide as any).subtitle || '';
-    if (kind === 'bullets') return (slide.bullets ?? []).map((t) => `• ${t}`).join('\n');
-    if (kind === 'body') return slide.bodyText || '';
+    if (kind === 'bullets') {
+      const id = String(boxId || '').toLowerCase();
+      if (id === 'left') {
+        const head = (slide as any).leftColumn?.heading ? `${(slide as any).leftColumn.heading}\n` : '';
+        const lines = (((slide as any).leftColumn?.bullets ?? []) as string[]).map((t) => `• ${t}`).join('\n');
+        return `${head}${lines}`.trim();
+      }
+      if (id === 'right') {
+        const head = (slide as any).rightColumn?.heading ? `${(slide as any).rightColumn.heading}\n` : '';
+        const lines = (((slide as any).rightColumn?.bullets ?? []) as string[]).map((t) => `• ${t}`).join('\n');
+        return `${head}${lines}`.trim();
+      }
+      return (slide.bullets ?? []).map((t) => `• ${t}`).join('\n');
+    }
+    if (kind === 'body') return slide.bodyText || (slide as any).quote?.text || '';
     return '';
   };
 
@@ -39,7 +54,7 @@ export function SlideThumb(props: { slide: Slide; widthPx?: number }) {
         position: 'relative',
         borderRadius: 12,
         border: '1px solid #e5e5e5',
-        background: '#fafafa',
+        background: deck?.theme?.backgroundColor ? hsl(deck.theme.backgroundColor) : '#fafafa',
         boxShadow: '0 6px 18px rgba(0,0,0,0.08)'
       }}
     >
@@ -85,7 +100,7 @@ export function SlideThumb(props: { slide: Slide; widthPx?: number }) {
             );
           }
 
-          const text = textForKind(kind);
+          const text = textForKind(kind, String(b.id || ''));
           if (!text.trim()) return null;
 
           const isTitle = kind === 'title';

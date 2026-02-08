@@ -403,7 +403,7 @@ export function WebApp() {
                           <div style={{ fontSize: 11, color: '#666' }}>{s.slideType}</div>
                         </div>
                         <div style={{ marginTop: 8 }}>
-                          <SlideThumb slide={s as any} widthPx={260} />
+                          <SlideThumb slide={s as any} deck={deck as any} widthPx={260} />
                         </div>
                       </button>
                     );
@@ -422,7 +422,7 @@ export function WebApp() {
                       <div style={{ fontWeight: 800, marginBottom: 6 }}>Selected slide</div>
                       <div style={{ fontSize: 12, color: '#666' }}>{sel.order + 1}. {sel.title}</div>
                       <div style={{ marginTop: 8 }}>
-                        <SlideThumb slide={sel as any} widthPx={520} />
+                        <SlideThumb slide={sel as any} deck={deck as any} widthPx={520} />
                       </div>
                       {sel.speakerNotes ? (
                         <div style={{ marginTop: 8, fontSize: 12 }}>

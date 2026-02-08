@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import crypto from 'node:crypto';
 
 const cacheDir = path.resolve(process.cwd(), 'assets-cache');
 
@@ -32,9 +33,17 @@ export const fetchImageAsDataUri = async (downloadUrl: string): Promise<{
 
   await fs.mkdir(cacheDir, { recursive: true });
   const ext = guessExt(contentType);
-  const assetId = `asset-${Date.now()}`;
-  const filePath = path.join(cacheDir, `${assetId}.${ext}`);
-  await fs.writeFile(filePath, buf);
+
+  // Content-hash caching: dedupe identical downloads across runs.
+  const hash = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
+  const filePath = path.join(cacheDir, `asset-${hash}.${ext}`);
+
+  try {
+    // Only write if missing.
+    await fs.access(filePath);
+  } catch {
+    await fs.writeFile(filePath, buf);
+  }
 
   return {
     contentType,

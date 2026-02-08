@@ -217,9 +217,25 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
 
       let text = '';
       if (kind === 'title') text = slide.title || '';
-      else if (kind === 'subtitle') text = slide.subtitle || '';
-      else if (kind === 'bullets') text = (slide.bullets ?? []).map((t) => `• ${t}`).join('\n');
-      else if (kind === 'body') text = slide.bodyText || '';
+      else if (kind === 'subtitle') {
+        // Allow layout templates to use subtitle boxes for attribution/etc.
+        text = slide.subtitle || '';
+      } else if (kind === 'bullets') {
+        const boxId = String(b.id || '').toLowerCase();
+        if (boxId === 'left') {
+          const head = slide.leftColumn?.heading ? `${slide.leftColumn.heading}\n` : '';
+          const lines = (slide.leftColumn?.bullets ?? []).map((t) => `• ${t}`).join('\n');
+          text = `${head}${lines}`.trim();
+        } else if (boxId === 'right') {
+          const head = slide.rightColumn?.heading ? `${slide.rightColumn.heading}\n` : '';
+          const lines = (slide.rightColumn?.bullets ?? []).map((t) => `• ${t}`).join('\n');
+          text = `${head}${lines}`.trim();
+        } else {
+          text = (slide.bullets ?? []).map((t) => `• ${t}`).join('\n');
+        }
+      } else if (kind === 'body') {
+        text = slide.bodyText || slide.quote?.text || '';
+      }
 
       if (!text.trim()) continue;
 

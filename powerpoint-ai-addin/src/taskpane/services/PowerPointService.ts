@@ -196,10 +196,21 @@ class OfficePowerPointService implements IPowerPointService {
           if (kind === 'title') text = slide.title || '';
           else if (kind === 'subtitle') text = slide.subtitle || '';
           else if (kind === 'bullets') {
-            const lines = slide.bullets?.length ? slide.bullets.map((t) => `• ${t}`) : [];
-            text = lines.join('\n');
+            const boxId = String((b as any).id || '').toLowerCase();
+            if (boxId === 'left') {
+              const head = (slide as any).leftColumn?.heading ? `${(slide as any).leftColumn.heading}\n` : '';
+              const lines = (((slide as any).leftColumn?.bullets ?? []) as string[]).map((t) => `• ${t}`).join('\n');
+              text = `${head}${lines}`.trim();
+            } else if (boxId === 'right') {
+              const head = (slide as any).rightColumn?.heading ? `${(slide as any).rightColumn.heading}\n` : '';
+              const lines = (((slide as any).rightColumn?.bullets ?? []) as string[]).map((t) => `• ${t}`).join('\n');
+              text = `${head}${lines}`.trim();
+            } else {
+              const lines = slide.bullets?.length ? slide.bullets.map((t) => `• ${t}`) : [];
+              text = lines.join('\n');
+            }
           } else if (kind === 'body') {
-            text = slide.bodyText || '';
+            text = slide.bodyText || (slide as any).quote?.text || '';
           } else {
             // shape/unknown -> ignore for now (Office.js shape styling is limited here)
             continue;
