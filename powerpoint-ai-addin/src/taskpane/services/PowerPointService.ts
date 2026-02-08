@@ -73,7 +73,11 @@ class OfficePowerPointService implements IPowerPointService {
 
   async getActivePresentation(): Promise<{ title: string; slideCount: number }> {
     // Office.js does not reliably expose presentation title; keep it simple.
-    return await PowerPoint.run(async (context) => {
+    // In web preview builds, PowerPoint global won't exist.
+    const PP = (globalThis as any).PowerPoint;
+    if (!PP?.run) return { title: 'Active Presentation', slideCount: 0 };
+
+    return await PP.run(async (context: any) => {
       const slides = context.presentation.slides;
       slides.load('count');
       await context.sync();
@@ -83,7 +87,10 @@ class OfficePowerPointService implements IPowerPointService {
 
   async createSlideFromStructure(structure: SlideStructure): Promise<void> {
     // NOTE: This requires Office.js runtime inside PowerPoint.
-    await PowerPoint.run(async (context) => {
+    const PP = (globalThis as any).PowerPoint;
+    if (!PP?.run) throw new Error('PowerPoint global is not available (not running inside Office).');
+
+    await PP.run(async (context: any) => {
       const slide = context.presentation.slides.add();
       const shapes = slide.shapes;
 
@@ -107,7 +114,10 @@ class OfficePowerPointService implements IPowerPointService {
 
   async insertSlide(slide: Slide): Promise<{ success: boolean; slideIndex: number }> {
     // Minimal insertion (Phase 1): title + bullets/body + optional selected photo asset.
-    return await PowerPoint.run(async (context) => {
+    const PP = (globalThis as any).PowerPoint;
+    if (!PP?.run) throw new Error('PowerPoint global is not available (not running inside Office).');
+
+    return await PP.run(async (context: any) => {
       const slides = context.presentation.slides;
       const created = slides.add();
       const shapes = created.shapes;

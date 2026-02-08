@@ -20,10 +20,10 @@ import { useStore } from '../store/useStore';
 const useStyles = makeStyles({
   wrap: {
     display: 'grid',
-    gap: 12
+    gap: '12px'
   },
   hero: {
-    padding: 16,
+    padding: '16px',
     borderRadius: tokens.borderRadiusXLarge,
     background:
       'linear-gradient(135deg, rgba(29,116,212,0.15) 0%, rgba(90,165,255,0.10) 45%, rgba(122,185,255,0.08) 100%)',
@@ -33,11 +33,11 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12
+    gap: '12px'
   },
   heroText: {
     display: 'grid',
-    gap: 4
+    gap: '4px'
   },
   contentCard: {
     borderRadius: tokens.borderRadiusXLarge,
@@ -46,41 +46,39 @@ const useStyles = makeStyles({
   },
   cardBody: {
     display: 'grid',
-    gap: 12,
-    padding: 16
+    gap: '12px',
+    padding: '16px'
   },
   actionsRow: {
     display: 'flex',
-    gap: 10,
+    gap: '10px',
     alignItems: 'center',
     justifyContent: 'space-between',
     flexWrap: 'wrap'
   },
   actionsLeft: {
     display: 'flex',
-    gap: 10,
+    gap: '10px',
     alignItems: 'center',
     flexWrap: 'wrap'
   },
   examples: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: 8
+    gap: '8px'
   },
   exampleBtn: {
-    borderRadius: 999,
+    borderRadius: '999px',
     padding: '6px 10px',
     border: `1px solid ${tokens.colorNeutralStroke2}`,
     backgroundColor: tokens.colorNeutralBackground2,
     cursor: 'pointer',
-    fontSize: 12,
-    color: tokens.colorNeutralForeground2
-  },
-  exampleBtnHover: {
+    fontSize: '12px',
+    color: tokens.colorNeutralForeground2,
     ':hover': {
       backgroundColor: tokens.colorNeutralBackground3,
       color: tokens.colorNeutralForeground1,
-      borderColor: tokens.colorBrandStroke1
+      border: `1px solid ${tokens.colorBrandStroke1}`
     }
   },
   slideCard: {
@@ -90,23 +88,23 @@ const useStyles = makeStyles({
   slideGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr',
-    gap: 10,
-    padding: 12
+    gap: '10px',
+    padding: '12px'
   },
   thumbRow: {
     display: 'flex',
-    gap: 8,
+    gap: '8px',
     flexWrap: 'wrap'
   },
   thumb: {
-    width: 120,
-    height: 68,
+    width: '120px',
+    height: '68px',
     objectFit: 'cover',
-    borderRadius: 10,
+    borderRadius: '10px',
     border: `1px solid ${tokens.colorNeutralStroke2}`
   },
   error: {
-    padding: 10,
+    padding: '10px',
     borderRadius: tokens.borderRadiusMedium,
     border: `1px solid ${tokens.colorPaletteRedBorder2}`,
     backgroundColor: tokens.colorPaletteRedBackground1,
@@ -183,7 +181,7 @@ export function IdeaInputPanel() {
                   <button
                     key={ex}
                     type="button"
-                    className={`${styles.exampleBtn} ${styles.exampleBtnHover}`}
+                    className={styles.exampleBtn}
                     onClick={() => setIdea(ex)}
                     disabled={isGenerating}
                   >

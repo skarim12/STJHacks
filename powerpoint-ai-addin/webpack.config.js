@@ -2,6 +2,7 @@
  * If you want, we can replace this with the official generator-office scaffolding.
  */
 const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
   entry: {
@@ -10,7 +11,8 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: '[name].bundle.js',
-    clean: true
+    clean: true,
+    publicPath: '/'
   },
   resolve: {
     extensions: ['.ts', '.tsx', '.js']
@@ -24,10 +26,18 @@ module.exports = {
       }
     ]
   },
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: path.resolve(__dirname, 'src/taskpane/taskpane.html'),
+      filename: 'index.html',
+      chunks: ['taskpane']
+    })
+  ],
   devServer: {
     static: {
       directory: path.join(__dirname, 'dist')
     },
+    historyApiFallback: true,
     port: 3001,
     hot: true
   }

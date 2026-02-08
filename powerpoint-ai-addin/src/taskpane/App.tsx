@@ -44,7 +44,7 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground1
   },
   inner: {
-    padding: 14
+    padding: '14px'
   }
 });
 
