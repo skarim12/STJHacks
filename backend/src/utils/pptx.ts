@@ -138,15 +138,6 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     }
   };
 
-  const motifFromPrompt = (prompt: string): "ribbons" | "grid" | "corners" | "diagonal" => {
-    const p = String(prompt || "").toLowerCase();
-    if (p.includes("grid") || p.includes("dots") || p.includes("dot")) return "grid";
-    if (p.includes("corner") || p.includes("frame")) return "corners";
-    if (p.includes("diagonal") || p.includes("angle") || p.includes("angular")) return "diagonal";
-    if (p.includes("ribbon") || p.includes("ribbons")) return "ribbons";
-    return "ribbons";
-  };
-
   const h32 = (s: string) => {
     let h = 2166136261;
     for (let i = 0; i < s.length; i++) {
@@ -161,12 +152,13 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     return x / 999;
   };
 
-  const addMotif = (slide: any, seed: string, themePrompt: string) => {
+  const addMotif = (slide: any, seed: string, _themePrompt: string) => {
     // Deterministic PPT-friendly background motif behind content.
+    // IMPORTANT: prefer outline.themePlan (do NOT keyword-guess from prompt in the renderer).
     const planMotif = String((themePlan as any)?.motif || "").toLowerCase();
     const motif = (["ribbons", "grid", "corners", "diagonal"] as const).includes(planMotif as any)
       ? (planMotif as any)
-      : motifFromPrompt(themePrompt);
+      : "ribbons";
 
     const intensity = String((themePlan as any)?.intensity || "medium").toLowerCase();
     const intensityLevel = intensity === "low" ? 0 : intensity === "high" ? 2 : 1;
