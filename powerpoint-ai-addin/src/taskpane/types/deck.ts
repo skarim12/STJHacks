@@ -56,6 +56,15 @@ export interface ThemeTokens {
 }
 
 // Individual slide definition
+export interface SelectedAsset {
+  kind: 'photo' | 'icon' | 'svg' | 'chart';
+  dataUri?: string; // e.g., data:image/jpeg;base64,... or data:image/svg+xml,...
+  sourceUrl?: string;
+  attribution?: string;
+  license?: string;
+  altText: string;
+}
+
 export interface Slide {
   id: string;
   order: number;
@@ -67,6 +76,9 @@ export interface Slide {
   bodyText?: string;
   speakerNotes?: string;
   imagePlaceholders?: ImagePlaceholder[];
+
+  /** Optional resolved assets chosen in the UI (stock preferred, AI fallback). */
+  selectedAssets?: SelectedAsset[];
 
   // For comparison/twoColumn layouts
   leftColumn?: {

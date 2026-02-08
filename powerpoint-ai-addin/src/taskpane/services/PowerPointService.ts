@@ -106,11 +106,23 @@ class OfficePowerPointService implements IPowerPointService {
   }
 
   async insertSlide(slide: Slide): Promise<{ success: boolean; slideIndex: number }> {
-    // Minimal insertion (Phase 1): title + bullets/body. Other layouts come later.
+    // Minimal insertion (Phase 1): title + bullets/body + optional selected photo asset.
     return await PowerPoint.run(async (context) => {
       const slides = context.presentation.slides;
       const created = slides.add();
       const shapes = created.shapes;
+
+      // If a selected photo exists, place it on the right side.
+      const photoDataUri = slide.selectedAssets?.find((a) => a.kind === 'photo' && a.dataUri)?.dataUri;
+      if (photoDataUri) {
+        // Office.js addImage expects base64 without the data: prefix.
+        const base64 = photoDataUri.includes(',') ? photoDataUri.split(',')[1] : photoDataUri;
+        const img = shapes.addImage(base64);
+        img.left = 380;
+        img.top = 110;
+        img.width = 290;
+        img.height = 290;
+      }
 
       const title = shapes.addTextBox(slide.title || '');
       title.left = 50;
@@ -118,20 +130,21 @@ class OfficePowerPointService implements IPowerPointService {
       title.width = 620;
       title.height = 50;
 
-      const bodyLines =
-        slide.bullets?.length ? slide.bullets.map((b) => `• ${b}`) : slide.bodyText ? [slide.bodyText] : [];
+      const bodyLines = slide.bullets?.length
+        ? slide.bullets.map((b) => `• ${b}`)
+        : slide.bodyText
+          ? [slide.bodyText]
+          : [];
       if (bodyLines.length) {
         const body = shapes.addTextBox(bodyLines.join('\n'));
         body.left = 50;
         body.top = 110;
-        body.width = 620;
+        body.width = photoDataUri ? 300 : 620;
         body.height = 360;
       }
 
       await context.sync();
 
-      // We can't easily get the exact index of the created slide without more loads;
-      // return best-effort.
       slides.load('count');
       await context.sync();
       return { success: true, slideIndex: Math.max(0, slides.count - 1) };

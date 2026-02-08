@@ -6,6 +6,9 @@ backend/node_modules/
 /dist/
 backend/dist/
 
+# backend caches
+backend/assets-cache/
+
 # env
 .env
 backend/.env

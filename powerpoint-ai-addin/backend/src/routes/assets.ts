@@ -91,8 +91,24 @@ assetsRouter.post('/search', async (req, res) => {
   }
 });
 
+import path from 'node:path';
+import fs from 'node:fs/promises';
+
+const cacheDir = path.resolve(process.cwd(), 'assets-cache');
+
+const guessExt = (contentType: string | null): string => {
+  const ct = (contentType ?? '').toLowerCase();
+  if (ct.includes('png')) return 'png';
+  if (ct.includes('webp')) return 'webp';
+  return 'jpg';
+};
+
+const toDataUri = (contentType: string, base64: string): string => {
+  return `data:${contentType};base64,${base64}`;
+};
+
 // Fetch/resolve an asset selection.
-// For now we return URLs + attribution for preview; later we can download/transform/cache.
+// Phase C implementation: download + cache + return base64 dataUri for Office.js insertion.
 assetsRouter.post('/fetch', async (req, res) => {
   const downloadUrl = String(req.body?.downloadUrl ?? '').trim();
   const altText = String(req.body?.altText ?? '').trim();
@@ -101,15 +117,37 @@ assetsRouter.post('/fetch', async (req, res) => {
 
   if (!downloadUrl) return res.status(400).json({ success: false, error: 'Missing downloadUrl' });
 
-  return res.json({
-    success: true,
-    asset: {
-      assetId: `asset-${Date.now()}`,
-      kind: 'photo',
-      sourceUrl: downloadUrl,
-      altText: altText || 'Stock photo',
-      attribution: attribution || undefined,
-      license: license || undefined
+  try {
+    const r = await fetch(downloadUrl);
+    if (!r.ok) {
+      return res.status(502).json({ success: false, error: `Asset download failed: ${r.status}` });
     }
-  });
+
+    const contentType = r.headers.get('content-type') ?? 'image/jpeg';
+    const buf = Buffer.from(await r.arrayBuffer());
+    const base64 = buf.toString('base64');
+
+    await fs.mkdir(cacheDir, { recursive: true });
+    const ext = guessExt(contentType);
+    const assetId = `asset-${Date.now()}`;
+    const filePath = path.join(cacheDir, `${assetId}.${ext}`);
+    await fs.writeFile(filePath, buf);
+
+    return res.json({
+      success: true,
+      asset: {
+        assetId,
+        kind: 'photo',
+        sourceUrl: downloadUrl,
+        filePath,
+        altText: altText || 'Stock photo',
+        attribution: attribution || undefined,
+        license: license || undefined,
+        contentType,
+        dataUri: toDataUri(contentType, base64)
+      }
+    });
+  } catch (e: any) {
+    return res.status(500).json({ success: false, error: e?.message ?? String(e) });
+  }
 });
