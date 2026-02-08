@@ -28,10 +28,29 @@ export interface SlideStructure {
   content: string[];
   notes: string;
   suggestedLayout: string;
+
   /** Optional user-provided description (used for image search/generation + layout hints). */
   describe?: string;
+
   /** Optional per-slide look preset (affects rendering only, not content). */
   look?: "default" | "light" | "dark" | "bold";
+
+  /** Optional workflow metadata (does NOT change slide text by itself). */
+  intent?:
+    | "agenda"
+    | "definition"
+    | "process"
+    | "caseStudy"
+    | "metrics"
+    | "recommendation"
+    | "risk"
+    | "summary"
+    | "timeline"
+    | "other";
+  priority?: 1 | 2 | 3;
+  visualHint?: string;
+  kicker?: string;
+  dataPoints?: string[];
 }
 
 export interface PresentationOutline {
@@ -39,12 +58,28 @@ export interface PresentationOutline {
   slides: SlideStructure[];
   colorScheme: ColorScheme;
   overallTheme: string;
+
   /** Optional deck-level user description (applies as a hint across slides). */
   describe?: string;
+
   /** Optional deck-level look preset (affects rendering only, not content). */
   look?: "default" | "light" | "dark" | "bold";
+
   /** Optional theme styling beyond colors (background/panels/accents). */
   themeStyle?: ThemeStyle;
+
+  /** Stored prompts/metadata for reproducibility & later decorate passes. */
+  generationPrompt?: string;
+  schemaVersion?: string;
+  themePrompt?: string;
+  decoratePrompt?: string;
+
+  /** Optional section structure (preferred over guessing later). */
+  sections?: Array<{ title: string; startIndex: number; endIndex: number }>;
+
+  /** Optional richer plans (backend may attach these). */
+  themePlan?: any;
+  decoratePlan?: any;
 }
 
 export interface ResearchResult {

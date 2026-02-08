@@ -242,22 +242,36 @@ Return JSON:
   "title": "string",
   "overallTheme": "string",
   "colorScheme": {
-    "primary": "string",
-    "secondary": "string",
-    "accent": "string",
-    "background": "string",
-    "text": "string"
+    "primary": "#RRGGBB",
+    "secondary": "#RRGGBB",
+    "accent": "#RRGGBB",
+    "background": "#RRGGBB",
+    "text": "#RRGGBB"
   },
+  "sections": [
+    {"title":"string","startIndex":0,"endIndex":3}
+  ],
   "slides": [
     {
       "title": "string",
       "slideType": "title" | "content" | "comparison" | "image" | "quote",
+      "intent": "agenda"|"definition"|"process"|"caseStudy"|"metrics"|"recommendation"|"risk"|"summary"|"timeline"|"other",
+      "priority": 1 | 2 | 3,
+      "visualHint": "string",
+      "kicker": "string",
       "content": ["string", "..."],
+      "dataPoints": ["string", "..."],
       "notes": "string",
       "suggestedLayout": "string"
     }
   ]
 }
+
+Rules:
+- Slides must be slide-ready (no paragraphs).
+- Do NOT invent citations.
+- Use "visualHint" as a short image/visual search phrase.
+- "sections" must cover the deck in order (excluding the title slide is fine).
 `.trim();
 
     const cacheKey = `outline:${userIdea}`;
