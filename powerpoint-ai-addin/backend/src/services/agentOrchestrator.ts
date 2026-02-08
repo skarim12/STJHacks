@@ -219,10 +219,11 @@ export const generateDeckWithAgents = async (
       slideAssets.push(assetId);
     }
 
-    // Placeholder for photo/icon acquisition (Phase C)
+    // Phase C (stock preferred): we don't automatically fetch stock here yet.
+    // Instead, we provide query terms + placeholders so UI can present choices.
     if (intent.visualType === 'photo' || intent.visualType === 'icon') {
       warnings.push(
-        `Slide "${s.title}": ${intent.visualType} sourcing not configured yet; returning placeholder description only.`
+        `Slide "${s.title}": ${intent.visualType} sourcing is available via /api/assets/search; pick an option in the UI to attach it.`
       );
     }
 
