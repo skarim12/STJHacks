@@ -369,6 +369,34 @@ export const generateDeckWithAgents = async (
     }
   }
 
+  // If QA is still failing due to density, try a deterministic split pass.
+  if (qa.issues?.some((i: any) => i.level === 'fail' && String(i.message || '').toLowerCase().includes('overcrowded'))) {
+    try {
+      const { newId } = await import('../utils/id.js');
+      const outSlides: any[] = [];
+      for (const s of deck.slides ?? []) {
+        const bullets = Array.isArray((s as any).bullets) ? (s as any).bullets : null;
+        const bulletTextLen = bullets ? bullets.join(' ').length : 0;
+        if (bullets && (bullets.length >= 9 || bulletTextLen > 520)) {
+          const splitAt = Math.min(5, Math.max(3, Math.round(bullets.length / 2)));
+          outSlides.push({ ...s, bullets: bullets.slice(0, splitAt) });
+          outSlides.push({ ...s, id: newId('slide'), title: `${String(s.title || 'Slide')} (cont.)`, bullets: bullets.slice(splitAt), speakerNotes: '' });
+          continue;
+        }
+        outSlides.push(s);
+      }
+      deck.slides = outSlides.map((s, idx) => ({ ...s, order: idx }));
+      warnings.push('Auto-repair: split dense slides to reduce overcrowding.');
+      rep.warning('qa', 'Auto-repair split dense slides', { slideCount: deck.slides.length });
+
+      qa = runDeckQa(deck);
+      rep.artifact('qa', 'report_after_split', qa);
+    } catch (e: any) {
+      warnings.push(`Auto-repair (split slides) failed: ${e?.message ?? String(e)}`);
+      rep.warning('qa', 'Auto-repair split failed', { error: e?.message ?? String(e) });
+    }
+  }
+
   rep.stageEnd('qa');
 
   // Validate final deck contract AFTER applying style/decoration/layoutPlan

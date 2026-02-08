@@ -114,16 +114,23 @@ deckExtrasRouter.post('/:deckId/repair', async (req, res) => {
     return out;
   });
 
-  // 1b) Split overly long bullet slides (better than shrinking fonts endlessly)
+  // 1b) Split overly long/dense bullet slides (better than shrinking fonts endlessly)
   try {
     const { newId } = await import('../utils/id.js');
 
     const outSlides: any[] = [];
     for (const s of working.slides ?? []) {
       const bullets = Array.isArray((s as any).bullets) ? (s as any).bullets : null;
-      if (bullets && bullets.length >= 9) {
-        const a = bullets.slice(0, 5);
-        const b = bullets.slice(5);
+      const bodyText = typeof (s as any).bodyText === 'string' ? String((s as any).bodyText) : '';
+
+      // Heuristic: split if there are many bullets OR the total bullet text is very long.
+      const bulletTextLen = bullets ? bullets.join(' ').length : 0;
+      const shouldSplit = Boolean(bullets && (bullets.length >= 9 || bulletTextLen > 520));
+
+      if (bullets && shouldSplit) {
+        const splitAt = Math.min(5, Math.max(3, Math.round(bullets.length / 2)));
+        const a = bullets.slice(0, splitAt);
+        const b = bullets.slice(splitAt);
 
         outSlides.push({ ...s, bullets: a });
         outSlides.push({
@@ -131,12 +138,29 @@ deckExtrasRouter.post('/:deckId/repair', async (req, res) => {
           id: newId('slide'),
           title: `${String(s.title || 'Slide')} (cont.)`,
           bullets: b,
+          bodyText: bodyText ? undefined : (s as any).bodyText,
           speakerNotes: ''
         });
 
-        warnings.push(`Repair: split long bullet slide into two slides: "${String(s.title || '').slice(0, 60)}"`);
+        warnings.push(`Repair: split dense bullet slide into two slides: "${String(s.title || '').slice(0, 60)}"`);
         continue;
       }
+
+      // If no bullets but body text is huge, split body into two slides.
+      if (!bullets && bodyText && bodyText.length > 900) {
+        const mid = Math.round(bodyText.length / 2);
+        const cut = bodyText.lastIndexOf('\n', mid) > 200 ? bodyText.lastIndexOf('\n', mid) : bodyText.lastIndexOf(' ', mid);
+        const at = cut > 200 ? cut : mid;
+
+        const a = bodyText.slice(0, at).trim();
+        const b = bodyText.slice(at).trim();
+
+        outSlides.push({ ...s, bodyText: a });
+        outSlides.push({ ...s, id: newId('slide'), title: `${String(s.title || 'Slide')} (cont.)`, bodyText: b, speakerNotes: '' });
+        warnings.push(`Repair: split long body slide into two slides: "${String(s.title || '').slice(0, 60)}"`);
+        continue;
+      }
+
       outSlides.push(s);
     }
 
