@@ -248,7 +248,7 @@ Return STRICT JSON only: { "notes": "..." }
     return JSON.stringify(data);
   }
 
-  async researchTopic(topic: string, depth: "quick" | "detailed"): Promise<ResearchResult> {
+  async researchTopic(topic: string, depth: "quick" | "detailed" | "deep"): Promise<ResearchResult> {
     try {
       const response = await axios.post(`${API_BASE}/research`, { topic, depth });
       return response.data as ResearchResult;

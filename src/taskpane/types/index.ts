@@ -52,6 +52,9 @@ export interface ResearchResult {
   recentDevelopments: string[];
   expertPerspectives: string[];
   examples: string[];
+  dataPoints?: string[];
+  counterpoints?: string[];
+  terms?: Array<{ term: string; definition: string }>;
 }
 
 export interface ImageSuggestion {

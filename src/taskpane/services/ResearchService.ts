@@ -4,7 +4,10 @@ import type { ResearchResult, ImageSuggestion, FactCheckResult } from "../types"
 export class ResearchService {
   constructor(private aiService: AIService) {}
 
-  async researchTopic(topic: string, depth: "quick" | "detailed" = "quick"): Promise<ResearchResult> {
+  async researchTopic(
+    topic: string,
+    depth: "quick" | "detailed" | "deep" = "quick"
+  ): Promise<ResearchResult> {
     return this.aiService.researchTopic(topic, depth);
   }
 

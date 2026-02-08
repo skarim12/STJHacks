@@ -274,7 +274,7 @@ Return JSON:
 router.post("/research", async (req, res) => {
   try {
     const topic = String((req.body as any)?.topic || "").trim();
-    const depth = (((req.body as any)?.depth || "quick") as "quick" | "detailed");
+    const depth = (((req.body as any)?.depth || "quick") as "quick" | "detailed" | "deep");
     if (!topic) return res.status(400).json({ error: "topic required" });
 
     const system = `
@@ -285,14 +285,24 @@ Return STRICT JSON:
   "keyFacts": ["string", "..."],
   "recentDevelopments": ["string", "..."],
   "expertPerspectives": ["string", "..."],
-  "examples": ["string", "..."]
+  "examples": ["string", "..."],
+  "dataPoints": ["string", "..."],
+  "counterpoints": ["string", "..."],
+  "terms": [{"term":"string","definition":"string"}]
 }
+
+Rules:
+- Provide slide-ready bullets.
+- Be concrete. Prefer numbers, dates, and names when known.
+- If unsure, say so; do not invent citations.
 `.trim();
 
     const userPrompt = `Research topic for PowerPoint slides:\nTopic: ${topic}\nDepth: ${depth}`;
 
     const cacheKey = `research:${depth}:${topic}`;
-    const json = await anthropicJsonRequest(cacheKey, system, userPrompt, depth === "detailed" ? 8192 : 2048);
+
+    const maxTok = depth === "deep" ? 12000 : depth === "detailed" ? 8192 : 3072;
+    const json = await anthropicJsonRequest(cacheKey, system, userPrompt, maxTok);
     res.json(json);
   } catch (err: any) {
     // eslint-disable-next-line no-console
