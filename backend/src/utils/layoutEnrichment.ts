@@ -50,10 +50,11 @@ function heuristicVariant(slideType: string, hasImage: boolean, bullets: { count
   // Two column bullets for medium density lists.
   if (hasEnoughForTwoCol) return "content.twoColBullets";
 
-  if (hasImage) {
-    // Split layouts only look good when text is truly light.
-    if (moderate && bullets.count <= 5 && bullets.totalLen <= 420 && bullets.maxLen < 110) return "content.splitRightHero";
+  // Prefer a split layout for moderately light content so the slide has a dedicated image area.
+  // Even if an image isn't available yet, we'll fill it in a later pass.
+  if (moderate && bullets.count <= 5 && bullets.totalLen <= 420 && bullets.maxLen < 110) return "content.splitRightHero";
 
+  if (hasImage) {
     return "content.singleCard";
   }
 
@@ -81,12 +82,9 @@ function validateAndRepairVariant(opts: {
 }): string {
   const { slideType, hasImage, stats } = opts;
 
-  // Hard guards: variants that visually require images.
-  if (!hasImage) {
-    if (opts.chosen === "content.splitRightHero" || opts.chosen === "content.splitLeftHero") return "content.singleCard";
-    if (opts.chosen === "quote.splitImage") return "quote.full";
-    if (slideType === "imagePlaceholder") return "image.captionRight"; // still OK with placeholder
-  }
+  // If a variant has an image box but we don't have an image *yet*, we still allow it.
+  // The renderer will show a placeholder, and a later enrichment pass can fill it.
+  // (This supports the "every slide with space gets an image" requirement.)
 
   // Text-heavy guardrails.
   const heavy = stats.count >= 7 || stats.totalLen >= 520 || stats.maxLen >= 140;

@@ -10,6 +10,9 @@ export type ImageEnrichmentOptions = {
   imageStyle?: "photo" | "illustration";
   maxDeckImages?: number;
   concurrency?: number;
+
+  // Optional: only attempt these slide indices (0-based). When provided, all other slides are skipped.
+  onlySlideIndices?: number[];
 };
 
 export type EnrichmentReport = {
@@ -33,6 +36,10 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
   const allowGeneratedImages = !!opts.allowGeneratedImages;
   const maxDeckImages = opts.maxDeckImages ?? 10;
   const concurrency = opts.concurrency ?? 2;
+
+  const only = Array.isArray(opts.onlySlideIndices)
+    ? new Set(opts.onlySlideIndices.filter((n) => Number.isFinite(n)).map((n) => Number(n)))
+    : null;
   const imageStyle = opts.imageStyle ?? "photo";
 
   const slides: any[] = Array.isArray(outline?.slides) ? outline.slides : [];
@@ -60,6 +67,11 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
       const i = idx++;
       const s = slides[i];
       if (!s) continue;
+
+      if (only && !only.has(i)) {
+        report.skipped.notSelected++;
+        continue;
+      }
       const slideType = String(s.slideType || "").toLowerCase();
       if (slideType === "title") {
         report.skipped.title++;

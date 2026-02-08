@@ -11,6 +11,7 @@ import { enrichOutlineWithLayouts } from "../utils/layoutEnrichment";
 import { enrichOutlineWithStyles } from "../utils/styleEnrichment";
 import { renderHtmlToPdfBuffer } from "../utils/htmlToPdf";
 import { enforceThemeStyle } from "../utils/themeStyle";
+import { getVariantByName } from "../utils/layoutVariants";
 
 const router = Router();
 
@@ -342,22 +343,39 @@ async function finalizeOutlineForRender(reqBody: any) {
 
   enforceThemeStyle(outline);
 
-  const slidesCount = Array.isArray((outline as any)?.slides) ? (outline as any).slides.length : 0;
-  const maxDeckImages = Math.max(0, Math.min(slidesCount, 20));
+  // 1) Choose a layout for each slide first.
+  // Layout variants can include image boxes even before we have images; we'll fill those next.
+  await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+  // 2) Determine which slides actually have space reserved for an image.
+  const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+  const indicesNeedingImage: number[] = [];
+  for (let i = 0; i < slides.length; i++) {
+    const s = slides[i];
+    if (!s) continue;
+    const t = String(s.slideType || "").toLowerCase();
+    if (t === "title") continue;
+
+    const variantName = String(s?.layoutPlan?.variant || "");
+    const variant = variantName ? getVariantByName(variantName) : null;
+    const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
+    if (hasImageBox) indicesNeedingImage.push(i);
+  }
+
+  const maxDeckImages = Math.max(0, Math.min(indicesNeedingImage.length, 20));
 
   const enrichment = await enrichOutlineWithImages(outline, {
     allowExternalImages,
     allowGeneratedImages,
     imageStyle,
     maxDeckImages,
+    // Only fill slides that have image space in the chosen layout.
+    onlySlideIndices: indicesNeedingImage,
     // Wikimedia APIs will rate-limit; keep this conservative.
     concurrency: allowExternalImages ? 1 : 2,
   });
 
-  // Always-on: choose a grid-based layout variant for each slide.
-  await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
-
-  // Optional: tweak typography and add simple shapes (still deterministic rendering).
+  // 3) Optional: tweak typography and add simple shapes (still deterministic rendering).
   if (useAi) {
     await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
   }
@@ -407,20 +425,36 @@ router.post("/export-pdf", async (req, res) => {
 
     enforceThemeStyle(outline);
 
-    const slidesCount = Array.isArray((outline as any)?.slides) ? (outline as any).slides.length : 0;
-    const maxDeckImages = Math.max(0, Math.min(slidesCount, 20));
+    // Layouts first, then only fill slides that actually have space for an image.
+    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+    const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+    const indicesNeedingImage: number[] = [];
+    for (let i = 0; i < slides.length; i++) {
+      const s = slides[i];
+      if (!s) continue;
+      const t = String(s.slideType || "").toLowerCase();
+      if (t === "title") continue;
+      const variantName = String(s?.layoutPlan?.variant || "");
+      const variant = variantName ? getVariantByName(variantName) : null;
+      const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
+      if (hasImageBox) indicesNeedingImage.push(i);
+    }
+
+    const maxDeckImages = Math.max(0, Math.min(indicesNeedingImage.length, 20));
 
     const enrichment = await enrichOutlineWithImages(outline, {
       allowExternalImages,
       allowGeneratedImages,
       imageStyle,
       maxDeckImages,
+      onlySlideIndices: indicesNeedingImage,
       // Wikimedia APIs will rate-limit; keep this conservative.
       concurrency: allowExternalImages ? 1 : 2,
     });
 
     // Always-on: ask AI to choose a grid-based layout variant for each slide.
-    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+    // (already done above)
 
     if (useAi) {
       await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
@@ -464,8 +498,23 @@ router.post("/export-pptx", async (req, res) => {
 
     enforceThemeStyle(outline);
 
-    const slidesCount = Array.isArray((outline as any)?.slides) ? (outline as any).slides.length : 0;
-    const maxDeckImages = Math.max(0, Math.min(slidesCount, 20));
+    // Layouts first, then only fill slides that actually have space for an image.
+    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+    const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+    const indicesNeedingImage: number[] = [];
+    for (let i = 0; i < slides.length; i++) {
+      const s = slides[i];
+      if (!s) continue;
+      const t = String(s.slideType || "").toLowerCase();
+      if (t === "title") continue;
+      const variantName = String(s?.layoutPlan?.variant || "");
+      const variant = variantName ? getVariantByName(variantName) : null;
+      const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
+      if (hasImageBox) indicesNeedingImage.push(i);
+    }
+
+    const maxDeckImages = Math.max(0, Math.min(indicesNeedingImage.length, 20));
 
     // Enrich for PPTX too so images/layout plans exist.
     await enrichOutlineWithImages(outline, {
@@ -473,10 +522,12 @@ router.post("/export-pptx", async (req, res) => {
       allowGeneratedImages,
       imageStyle,
       maxDeckImages,
+      onlySlideIndices: indicesNeedingImage,
       // Wikimedia APIs will rate-limit; keep this conservative.
       concurrency: allowExternalImages ? 1 : 2,
     });
-    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+    // (layouts already done above)
 
     await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
 
@@ -653,18 +704,36 @@ router.post("/slide-html", async (req, res) => {
       return res.status(400).json({ error: `slideIndex out of range (0..${Math.max(0, slides.length - 1)})` });
     }
 
+    // Layouts first, then only fill slides that actually have space for an image.
+    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
     const slidesCount = Array.isArray((outline as any)?.slides) ? (outline as any).slides.length : 0;
-    const maxDeckImages = Math.max(0, Math.min(slidesCount, 20));
+    const slidesAll: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+    const indicesNeedingImage: number[] = [];
+    for (let i = 0; i < slidesAll.length; i++) {
+      const s = slidesAll[i];
+      if (!s) continue;
+      const t = String(s.slideType || "").toLowerCase();
+      if (t === "title") continue;
+      const variantName = String(s?.layoutPlan?.variant || "");
+      const variant = variantName ? getVariantByName(variantName) : null;
+      const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
+      if (hasImageBox) indicesNeedingImage.push(i);
+    }
+
+    const maxDeckImages = Math.max(0, Math.min(indicesNeedingImage.length, Math.min(slidesCount, 20)));
 
     await enrichOutlineWithImages(outline, {
       allowExternalImages,
       allowGeneratedImages,
       imageStyle,
       maxDeckImages,
+      onlySlideIndices: indicesNeedingImage,
       // Wikimedia APIs will rate-limit; keep this conservative.
       concurrency: allowExternalImages ? 1 : 2,
     });
-    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+    // (layouts already done above)
     if (useAi) await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
 
     // Render full deck then extract the requested slide section.
