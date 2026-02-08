@@ -39,14 +39,14 @@ def _print_port_help(port: int):
 
 
 def run(cmd: str, cwd: Path):
-    print(f"\n$ {cmd}")
+    print(f"\n$ {cmd}", flush=True)
     proc = subprocess.run(cmd, cwd=str(cwd), shell=True)
     if proc.returncode != 0:
         raise SystemExit(proc.returncode)
 
 
 def popen(cmd: str, cwd: Path, name: str, env=None):
-    print(f"\n[starting {name}] {cmd}")
+    print(f"\n[starting {name}] {cmd}", flush=True)
     return subprocess.Popen(cmd, cwd=str(cwd), shell=True, env=env)
 
 
@@ -75,13 +75,20 @@ def main():
     # npm ci requires a clean node_modules.
     import shutil
 
-    for p in (APP / "node_modules", BACKEND / "node_modules"):
-      if p.exists():
-        print(f"\n[clean] removing {p}")
-        shutil.rmtree(p, ignore_errors=True)
+    fast = os.environ.get('FAST_DEV', '').lower() in ('1', 'true', 'yes')
 
-    run(f"{npm} ci --no-fund --no-audit", APP)
-    run(f"{npm} ci --no-fund --no-audit", BACKEND)
+    if not fast:
+        for p in (APP / "node_modules", BACKEND / "node_modules"):
+            if p.exists():
+                print(f"\n[clean] removing {p}", flush=True)
+                shutil.rmtree(p, ignore_errors=True)
+
+        run(f"{npm} ci --no-fund --no-audit", APP)
+        run(f"{npm} ci --no-fund --no-audit", BACKEND)
+    else:
+        print("\n[fast] skipping clean install (FAST_DEV=1)", flush=True)
+        run(f"{npm} install --no-fund --no-audit", APP)
+        run(f"{npm} install --no-fund --no-audit", BACKEND)
 
     # Build backend
     run(f"{npm} run build", BACKEND)
@@ -90,9 +97,10 @@ def main():
     env_backend = os.environ.copy()
     env_backend["PORT"] = str(backend_port)
 
-    print("\nDev URLs:")
-    print(f"  Backend: http://localhost:{backend_port}/healthz")
-    print(f"  UI:      http://localhost:{ui_port}/")
+    print("\nDev URLs:", flush=True)
+    print(f"  Backend: http://localhost:{backend_port}/healthz", flush=True)
+    print(f"  UI:      http://localhost:{ui_port}/", flush=True)
+    print("\nRunning. Press Ctrl+C to stop.", flush=True)
 
     p_backend = popen(f"node dist\\server.js", BACKEND, "backend", env=env_backend)
     p_frontend = popen(f"{npm} run dev -- --port {ui_port}", APP, "frontend")
