@@ -148,6 +148,9 @@ export function IdeaInputPanel() {
     uploadedPptxViewerUrl,
     uploadedPptxWarnings,
     aiEditSlide,
+    slideEditBefore,
+    slideEditAfter,
+    slideEditPatch,
     searchPhotosForSlide,
     selectPhotoForSlide,
     autoPickVisualForSlide,
@@ -454,6 +457,83 @@ export function IdeaInputPanel() {
                       }}
                     />
                   </Field>
+
+                  {/* Slide edit diff */}
+                  {slideEditBefore || slideEditAfter || slideEditPatch ? (
+                    <Card className={styles.panel}>
+                      <CardHeader header={<Subtitle2>Edit diff</Subtitle2>} description={<Caption1>Before/after + patch streamed from backend</Caption1>} />
+                      <div className={styles.panelBody}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          <div>
+                            <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Before</Caption1>
+                            <pre
+                              style={{
+                                margin: 0,
+                                whiteSpace: 'pre-wrap',
+                                fontSize: 11,
+                                border: `1px solid ${tokens.colorNeutralStroke2}`,
+                                borderRadius: 10,
+                                padding: 8
+                              }}
+                            >
+                              {JSON.stringify(
+                                {
+                                  title: (slideEditBefore as any)?.title,
+                                  bullets: (slideEditBefore as any)?.bullets,
+                                  bodyText: (slideEditBefore as any)?.bodyText,
+                                  speakerNotes: (slideEditBefore as any)?.speakerNotes
+                                },
+                                null,
+                                2
+                              )}
+                            </pre>
+                          </div>
+                          <div>
+                            <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>After</Caption1>
+                            <pre
+                              style={{
+                                margin: 0,
+                                whiteSpace: 'pre-wrap',
+                                fontSize: 11,
+                                border: `1px solid ${tokens.colorNeutralStroke2}`,
+                                borderRadius: 10,
+                                padding: 8
+                              }}
+                            >
+                              {JSON.stringify(
+                                {
+                                  title: (slideEditAfter as any)?.title,
+                                  bullets: (slideEditAfter as any)?.bullets,
+                                  bodyText: (slideEditAfter as any)?.bodyText,
+                                  speakerNotes: (slideEditAfter as any)?.speakerNotes
+                                },
+                                null,
+                                2
+                              )}
+                            </pre>
+                          </div>
+                        </div>
+
+                        {slideEditPatch ? (
+                          <div>
+                            <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Patch</Caption1>
+                            <pre
+                              style={{
+                                margin: 0,
+                                whiteSpace: 'pre-wrap',
+                                fontSize: 11,
+                                border: `1px solid ${tokens.colorNeutralStroke2}`,
+                                borderRadius: 10,
+                                padding: 8
+                              }}
+                            >
+                              {JSON.stringify(slideEditPatch, null, 2)}
+                            </pre>
+                          </div>
+                        ) : null}
+                      </div>
+                    </Card>
+                  ) : null}
 
                   <Card className={styles.panel}>
                     <CardHeader

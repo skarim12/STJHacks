@@ -33,6 +33,11 @@ type Store = {
   streamWarnings: Array<{ stage: string; message: string }>;
   streamQa: any | null;
 
+  // Slide edit diff support
+  slideEditBefore: any | null;
+  slideEditAfter: any | null;
+  slideEditPatch: any | null;
+
   // legacy
   ai: AIService;
 
@@ -78,6 +83,9 @@ export const useStore = create<Store>((set, get) => ({
   streamEvents: [],
   streamWarnings: [],
   streamQa: null,
+  slideEditBefore: null,
+  slideEditAfter: null,
+  slideEditPatch: null,
 
   // IMPORTANT: When the taskpane is served over https (required by Office add-ins),
   // browsers will block mixed-content calls to http://localhost:PORT.
@@ -333,6 +341,11 @@ export const useStore = create<Store>((set, get) => ({
 
     try {
       await get().deckApi.aiEditSlideStream(deck.id, slideId, { instruction: trimmed }, (evt) => {
+        if (evt.event === 'artifact' && evt.data?.stage === 'slide_edit') {
+          if (evt.data?.name === 'before') set({ slideEditBefore: evt.data?.data ?? null });
+          if (evt.data?.name === 'draft_patch') set({ slideEditPatch: evt.data?.data ?? null });
+          if (evt.data?.name === 'after') set({ slideEditAfter: evt.data?.data ?? null });
+        }
         set((s) => ({
           ...s,
           streamEvents: [...(s.streamEvents ?? []), evt].slice(-200)

@@ -4,6 +4,7 @@ import { DeckGenerationRequestZ, SlideEditRequestZ } from '../agents/schemas.js'
 import { generateDeckWithAgents } from '../services/agentOrchestrator.js';
 import { DeckStore } from '../services/deckStore.js';
 import { SlideEditAgent } from '../agents/slideEditAgent.js';
+import { LayoutPlanAgent } from '../agents/layoutPlanAgent.js';
 
 export const deckStreamRouter = Router();
 
@@ -77,28 +78,57 @@ deckStreamRouter.post('/:deckId/slides/:slideId/ai-edit/stream', async (req, res
   const { send } = sse(res);
 
   try {
+    // Emit "before" artifact for diffing on the client.
     send('stage:start', { stage: 'slide_edit', deckId, slideId });
+    send('artifact', { stage: 'slide_edit', name: 'before', data: slide });
 
+    // Pass 1: draft patch (currently same agent output; reserved for future multi-pass refinement)
+    send('stage:start', { stage: 'slide_edit_draft', deckId, slideId });
     const out = await SlideEditAgent.run({
       slideId,
       slide,
       instruction: parsed.data.instruction,
       patch: parsed.data.patch as any
     });
+    send('artifact', { stage: 'slide_edit', name: 'draft_patch', data: out.patch });
+    send('stage:end', { stage: 'slide_edit_draft', deckId, slideId });
 
-    send('artifact', { stage: 'slide_edit', name: 'patch', data: out.patch });
     if (out.warnings?.length) {
       send('warning', { stage: 'slide_edit', message: 'SlideEditAgent warnings', data: { warnings: out.warnings } });
     }
 
-    const updated = DeckStore.patchSlide(deckId, slideId, out.patch as any);
-    if (!updated) {
+    // Apply patch
+    const updatedDeck = DeckStore.patchSlide(deckId, slideId, out.patch as any);
+    if (!updatedDeck) {
       send('error', { stage: 'slide_edit', message: 'Deck not found after update', degraded: false });
       return res.end();
     }
 
-    send('stage:end', { stage: 'slide_edit', deckId, slideId });
-    send('done', { deckId, slideId, patch: out.patch, warnings: out.warnings ?? [] });
+    // Pass 2: re-run layout for this slide (best-effort) so preview + PPT insertion stay consistent.
+    let layoutPatched = false;
+    try {
+      send('stage:start', { stage: 'layout_single', deckId, slideId });
+      const { bySlideId, warnings } = await LayoutPlanAgent.run(updatedDeck as any);
+      const lp = (bySlideId as any)?.[slideId];
+      if (lp) {
+        DeckStore.patchSlide(deckId, slideId, { layoutPlan: lp } as any);
+        layoutPatched = true;
+        send('artifact', { stage: 'layout_single', name: 'layoutPlan', data: lp });
+      }
+      if (warnings?.length) {
+        send('warning', { stage: 'layout_single', message: 'LayoutPlanAgent warnings', data: { warnings } });
+      }
+      send('stage:end', { stage: 'layout_single', deckId, slideId, layoutPatched });
+    } catch (e: any) {
+      send('warning', { stage: 'layout_single', message: 'LayoutPlanAgent crashed', data: { error: e?.message ?? String(e) } });
+    }
+
+    const afterDeck = DeckStore.get(deckId);
+    const afterSlide = afterDeck?.slides?.find((s) => s.id === slideId) ?? null;
+    send('artifact', { stage: 'slide_edit', name: 'after', data: afterSlide });
+
+    send('stage:end', { stage: 'slide_edit', deckId, slideId, layoutPatched });
+    send('done', { deckId, slideId, patch: out.patch, layoutPatched, warnings: out.warnings ?? [] });
   } catch (e: any) {
     send('error', { stage: 'slide_edit', message: e?.message ?? String(e), degraded: false });
   } finally {
