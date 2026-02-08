@@ -1,9 +1,38 @@
 import { Router } from 'express';
 import PptxGenJS from 'pptxgenjs';
 import { DeckStore } from '../services/deckStore.js';
+import { runDeckQa } from '../services/deckQa.js';
 import type { DeckSchema, Slide } from '../types/deck.js';
 
 export const exportRouter = Router();
+
+// GET /api/export/report/:deckId
+// Lightweight JSON report for demos: QA + asset attribution/licensing.
+exportRouter.get('/report/:deckId', (req, res) => {
+  const deckId = String(req.params.deckId);
+  const deck = DeckStore.get(deckId);
+  if (!deck) return res.status(404).json({ success: false, error: 'Deck not found' });
+
+  const qa = runDeckQa(deck);
+
+  const assets: any[] = [];
+  for (const s of deck.slides ?? []) {
+    for (const a of s.selectedAssets ?? []) {
+      assets.push({
+        slideId: s.id,
+        slideOrder: s.order,
+        slideTitle: s.title,
+        kind: a.kind,
+        sourceUrl: a.sourceUrl,
+        attribution: a.attribution,
+        license: a.license,
+        altText: a.altText
+      });
+    }
+  }
+
+  return res.json({ success: true, deckId, qa, assets });
+});
 
 function safeFileName(name: string): string {
   const base = (name || 'deck').replace(/[^a-z0-9-_]+/gi, '_');

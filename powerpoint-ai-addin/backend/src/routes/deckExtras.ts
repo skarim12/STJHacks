@@ -114,6 +114,38 @@ deckExtrasRouter.post('/:deckId/repair', async (req, res) => {
     return out;
   });
 
+  // 1b) Split overly long bullet slides (better than shrinking fonts endlessly)
+  try {
+    const { newId } = await import('../utils/id.js');
+
+    const outSlides: any[] = [];
+    for (const s of working.slides ?? []) {
+      const bullets = Array.isArray((s as any).bullets) ? (s as any).bullets : null;
+      if (bullets && bullets.length >= 9) {
+        const a = bullets.slice(0, 5);
+        const b = bullets.slice(5);
+
+        outSlides.push({ ...s, bullets: a });
+        outSlides.push({
+          ...s,
+          id: newId('slide'),
+          title: `${String(s.title || 'Slide')} (cont.)`,
+          bullets: b,
+          speakerNotes: ''
+        });
+
+        warnings.push(`Repair: split long bullet slide into two slides: "${String(s.title || '').slice(0, 60)}"`);
+        continue;
+      }
+      outSlides.push(s);
+    }
+
+    // Re-number orders
+    working.slides = outSlides.map((s, idx) => ({ ...s, order: idx }));
+  } catch (e: any) {
+    warnings.push(`Repair: split-slide step failed: ${e?.message ?? String(e)}`);
+  }
+
   // 2) Ensure speaker notes exist (best-effort; uses existing agent)
   try {
     const missing = (working.slides ?? []).some((s: any) => !String(s.speakerNotes ?? '').trim());
