@@ -1,7 +1,6 @@
 import os
 import signal
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -38,6 +37,13 @@ def _print_port_help(port: int):
     print("  Stop-Process -Id <PID> -Force")
 
 
+def _find_free_port(start: int, end: int) -> int:
+    for p in range(start, end + 1):
+        if _port_available(p):
+            return p
+    raise RuntimeError(f"No free ports in range {start}-{end}")
+
+
 def run(cmd: str, cwd: Path):
     print(f"\n$ {cmd}", flush=True)
     proc = subprocess.run(cmd, cwd=str(cwd), shell=True)
@@ -58,26 +64,29 @@ def main():
         print(f"ERROR: expected {BACKEND} to exist")
         raise SystemExit(1)
 
-    # Ports
-    backend_port = int(os.environ.get("BACKEND_PORT", "3000"))
-    ui_port = int(os.environ.get("UI_PORT", "3001"))
+    # Ports: allow override, otherwise auto-pick free ports.
+    backend_port = int(os.environ.get("BACKEND_PORT", "0") or 0)
+    ui_port = int(os.environ.get("UI_PORT", "0") or 0)
 
-    for port in (backend_port, ui_port):
-        if not _port_available(port):
-            _print_port_help(port)
-            raise SystemExit(1)
+    if backend_port <= 0:
+        backend_port = _find_free_port(3000, 3010)
+    if ui_port <= 0:
+        ui_port = _find_free_port(3001, 3020)
 
     # Make sure npm.cmd exists
-    npm = os.environ.get("NPM_CMD", r"C:\Program Files\nodejs\npm.cmd")
-    npm = f'"{npm}"'
+    npm_path = os.environ.get("NPM_CMD", r"C:\Program Files\nodejs\npm.cmd")
+    npm = f'"{npm_path}"'
 
-    # Install deps (prefer reproducible installs)
-    # npm ci requires a clean node_modules.
-    import shutil
+    # Install deps
+    fast = os.environ.get("FAST_DEV", "").lower() in ("1", "true", "yes")
 
-    fast = os.environ.get('FAST_DEV', '').lower() in ('1', 'true', 'yes')
+    if fast:
+        print("\n[fast] skipping clean install (FAST_DEV=1)", flush=True)
+        run(f"{npm} install --no-fund --no-audit", APP)
+        run(f"{npm} install --no-fund --no-audit", BACKEND)
+    else:
+        import shutil
 
-    if not fast:
         for p in (APP / "node_modules", BACKEND / "node_modules"):
             if p.exists():
                 print(f"\n[clean] removing {p}", flush=True)
@@ -85,10 +94,6 @@ def main():
 
         run(f"{npm} ci --no-fund --no-audit", APP)
         run(f"{npm} ci --no-fund --no-audit", BACKEND)
-    else:
-        print("\n[fast] skipping clean install (FAST_DEV=1)", flush=True)
-        run(f"{npm} install --no-fund --no-audit", APP)
-        run(f"{npm} install --no-fund --no-audit", BACKEND)
 
     # Build backend
     run(f"{npm} run build", BACKEND)
@@ -102,13 +107,13 @@ def main():
     print(f"  UI:      http://localhost:{ui_port}/", flush=True)
     print("\nRunning. Press Ctrl+C to stop.", flush=True)
 
-    p_backend = popen(f"node dist\\server.js", BACKEND, "backend", env=env_backend)
+    p_backend = popen("node dist\\server.js", BACKEND, "backend", env=env_backend)
     p_frontend = popen(f"{npm} run dev -- --port {ui_port}", APP, "frontend")
 
     procs = [p_backend, p_frontend]
 
     def shutdown(*_):
-        print("\nShutting down...")
+        print("\nShutting down...", flush=True)
         for p in procs:
             try:
                 p.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGINT)
