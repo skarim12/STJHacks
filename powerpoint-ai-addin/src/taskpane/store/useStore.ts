@@ -56,6 +56,7 @@ type Store = {
   generateDesign: (designPrompt: string) => Promise<void>;
 
   insertCurrentDeck: () => Promise<void>;
+  downloadPptx: () => Promise<void>;
 };
 
 export const useStore = create<Store>((set, get) => ({
@@ -347,6 +348,25 @@ export const useStore = create<Store>((set, get) => ({
     set({ status: 'generating', error: null });
     try {
       await get().ppt.insertDeck(deck);
+      set({ status: 'done' });
+    } catch (e: any) {
+      set({ status: 'error', error: e?.message ?? String(e) });
+    }
+  },
+
+  downloadPptx: async () => {
+    const deck = get().deck;
+    if (!deck) return;
+    set({ status: 'generating', error: null });
+
+    try {
+      const blob = await get().deckApi.downloadPptx(deck.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(deck.title || 'deck').replace(/[^a-z0-9]/gi, '_')}.pptx`;
+      a.click();
+      URL.revokeObjectURL(url);
       set({ status: 'done' });
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });

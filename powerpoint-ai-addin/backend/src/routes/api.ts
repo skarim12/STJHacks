@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { deckRouter } from './deck.js';
 import { assetsRouter } from './assets.js';
 import { styleRouter } from './style.js';
+import { exportRouter } from './export.js';
 
 export const apiRouter = Router();
 
@@ -33,3 +34,4 @@ apiRouter.post('/outline', async (req, res) => {
 apiRouter.use('/deck', deckRouter);
 apiRouter.use('/assets', assetsRouter);
 apiRouter.use('/style', styleRouter);
+apiRouter.use('/export', exportRouter);

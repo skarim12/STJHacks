@@ -67,5 +67,14 @@ export class DeckApiClient {
     });
     return await r.json();
   }
+
+  async downloadPptx(deckId: string): Promise<Blob> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/export/pptx/${encodeURIComponent(deckId)}`);
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      throw new Error(`PPTX export failed: ${r.status} ${t.slice(0, 200)}`);
+    }
+    return await r.blob();
+  }
 }
 

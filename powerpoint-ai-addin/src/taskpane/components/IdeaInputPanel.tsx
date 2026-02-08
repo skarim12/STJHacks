@@ -140,6 +140,7 @@ export function IdeaInputPanel() {
     generateDesign,
     updateTheme,
     insertCurrentDeck,
+    downloadPptx,
     aiEditSlide,
     searchPhotosForSlide,
     selectPhotoForSlide,
@@ -461,9 +462,12 @@ export function IdeaInputPanel() {
                     <Button appearance="secondary" disabled={isGenerating} onClick={() => insertCurrentDeck()}>
                       Insert into PowerPoint
                     </Button>
+                    <Button appearance="secondary" disabled={isGenerating} onClick={() => downloadPptx()}>
+                      Download PPTX (web)
+                    </Button>
                   </div>
                   <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
-                    “Insert into PowerPoint” works when running inside the Office add-in. In the web demo it logs via MockPPT.
+                    “Insert into PowerPoint” works when running inside the Office add-in. “Download PPTX” works in the web demo.
                   </Caption1>
 
                   <div>
