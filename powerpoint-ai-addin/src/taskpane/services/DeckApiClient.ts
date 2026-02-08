@@ -18,6 +18,84 @@ export class DeckApiClient {
     return (await r.json()) as DeckGenerationResponse;
   }
 
+  async getDeck(deckId: string): Promise<any> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/deck/${encodeURIComponent(deckId)}`);
+    return await r.json();
+  }
+
+  async aiEditSlideStream(
+    deckId: string,
+    slideId: string,
+    req: { instruction: string; patch?: any },
+    onEvent: (evt: { event: string; data: any }) => void
+  ): Promise<void> {
+    return await this.postSse(
+      `/api/deck/${encodeURIComponent(deckId)}/slides/${encodeURIComponent(slideId)}/ai-edit/stream`,
+      req,
+      onEvent
+    );
+  }
+
+  private async postSse(path: string, body: any, onEvent: (evt: { event: string; data: any }) => void): Promise<void> {
+    const r = await fetch(`${this.cfg.baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!r.ok || !r.body) {
+      const t = await r.text().catch(() => '');
+      throw new Error(`Stream failed: ${r.status} ${t.slice(0, 200)}`);
+    }
+
+    const reader = r.body.getReader();
+    const dec = new TextDecoder('utf-8');
+    let buf = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+
+      while (true) {
+        const idx = buf.indexOf('\n\n');
+        if (idx < 0) break;
+        const frame = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+
+        let event = 'message';
+        let dataStr = '';
+        for (const line of frame.split(/\n/)) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+        }
+
+        if (!dataStr) continue;
+        let data: any = null;
+        try {
+          data = JSON.parse(dataStr);
+        } catch {
+          data = dataStr;
+        }
+
+        onEvent({ event, data });
+      }
+    }
+  }
+
+  async generateDeckStream(
+    req: {
+      prompt: string;
+      designPrompt?: string;
+      slideCount?: number;
+      targetAudience?: string;
+      tone?: 'formal' | 'casual' | 'technical' | 'creative';
+    },
+    onEvent: (evt: { event: string; data: any }) => void
+  ): Promise<void> {
+    return await this.postSse('/api/deck/generate/stream', req, onEvent);
+  }
+
   async searchPhotos(query: string, count = 6): Promise<any> {
     const r = await fetch(`${this.cfg.baseUrl}/api/assets/search`, {
       method: 'POST',
@@ -75,6 +153,21 @@ export class DeckApiClient {
       throw new Error(`PPTX export failed: ${r.status} ${t.slice(0, 200)}`);
     }
     return await r.blob();
+  }
+
+  async generateSpeakerNotesForDeck(deckId: string): Promise<any> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/deck/${encodeURIComponent(deckId)}/speaker-notes/generate`, {
+      method: 'POST'
+    });
+    return await r.json();
+  }
+
+  async generateSpeakerNotesForSlide(deckId: string, slideId: string): Promise<any> {
+    const r = await fetch(
+      `${this.cfg.baseUrl}/api/deck/${encodeURIComponent(deckId)}/slides/${encodeURIComponent(slideId)}/speaker-notes/generate`,
+      { method: 'POST' }
+    );
+    return await r.json();
   }
 
   async uploadPptx(file: File): Promise<any> {

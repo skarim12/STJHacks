@@ -131,6 +131,9 @@ export function IdeaInputPanel() {
   const {
     status,
     error,
+    streamStage,
+    streamWarnings,
+    streamQa,
     deck,
     stylePresets,
     selectedStyleId,
@@ -149,6 +152,7 @@ export function IdeaInputPanel() {
     selectPhotoForSlide,
     autoPickVisualForSlide,
     generateAiImageForSlide,
+    generateSpeakerNotesSmart,
     photoResultsBySlideId
   } = useStore();
 
@@ -231,11 +235,51 @@ export function IdeaInputPanel() {
               {isGenerating ? 'Generating…' : deck ? 'Regenerate Deck' : 'Generate Deck'}
             </Button>
             <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
-              {isGenerating ? 'Working…' : 'Auto-selects stock photos per slide when possible (PEXEL_API required).'}
+              {isGenerating ? 'Working…' : 'Auto-selects visuals per slide (Pexels if PEXEL_API set, else Wikimedia; optional OpenAI fallback).'}
             </Caption1>
           </div>
 
           {error ? <div className={styles.error}>{error}</div> : null}
+
+          {/* Stream progress */}
+          {status === 'generating' ? (
+            <div style={{ marginTop: 10 }}>
+              <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Stage: {streamStage ?? '…'}</Caption1>
+            </div>
+          ) : null}
+
+          {/* QA summary */}
+          {streamQa ? (
+            <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: `1px solid ${tokens.colorNeutralStroke2}` }}>
+              <Subtitle2>QA</Subtitle2>
+              <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
+                Score: {String((streamQa as any).score ?? '—')} | Pass: {String((streamQa as any).pass ?? '—')}
+              </Caption1>
+              {Array.isArray((streamQa as any).issues) && (streamQa as any).issues.length ? (
+                <ul style={{ marginTop: 6, marginBottom: 0 }}>
+                  {(streamQa as any).issues.slice(0, 6).map((i: any, idx: number) => (
+                    <li key={idx} style={{ fontSize: 12 }}>
+                      <strong>{String(i.level ?? '')}</strong>: {String(i.message ?? '')}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Recent warnings */}
+          {streamWarnings?.length ? (
+            <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: `1px solid ${tokens.colorNeutralStroke2}` }}>
+              <Subtitle2>Warnings</Subtitle2>
+              <ul style={{ marginTop: 6, marginBottom: 0 }}>
+                {streamWarnings.slice(-6).map((w: any, idx: number) => (
+                  <li key={idx} style={{ fontSize: 12 }}>
+                    <strong>{w.stage || 'stage'}</strong>: {w.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </Card>
 
@@ -282,6 +326,121 @@ export function IdeaInputPanel() {
                     <Input value={selectedSlide.title} disabled readOnly />
                   </Field>
 
+                  <Card className={styles.panel}>
+                    <CardHeader header={<Subtitle2>Slide preview</Subtitle2>} description={<Caption1>Rendered from layoutPlan + selectedAssets</Caption1>} />
+                    <div className={styles.panelBody}>
+                      {(() => {
+                        const plan = (selectedSlide as any).layoutPlan as any | undefined;
+                        const photoDataUri = selectedSlide.selectedAssets?.find((a) => a.kind === 'photo' && (a as any).dataUri)?.dataUri as
+                          | string
+                          | undefined;
+
+                        const SLIDE_W = 13.333;
+                        const SLIDE_H = 7.5;
+                        const pxW = 320;
+                        const pxH = Math.round((pxW * SLIDE_H) / SLIDE_W);
+                        const scale = pxW / SLIDE_W;
+
+                        const boxStyle = (b: any): React.CSSProperties => ({
+                          position: 'absolute',
+                          left: Math.round(Number(b.x || 0) * scale),
+                          top: Math.round(Number(b.y || 0) * scale),
+                          width: Math.round(Number(b.w || 1) * scale),
+                          height: Math.round(Number(b.h || 1) * scale),
+                          overflow: 'hidden',
+                          borderRadius: 8
+                        });
+
+                        const textForKind = (kind: string) => {
+                          if (kind === 'title') return selectedSlide.title || '';
+                          if (kind === 'subtitle') return (selectedSlide as any).subtitle || '';
+                          if (kind === 'bullets') return (selectedSlide.bullets ?? []).map((t) => `• ${t}`).join('\n');
+                          if (kind === 'body') return selectedSlide.bodyText || '';
+                          return '';
+                        };
+
+                        return (
+                          <div
+                            style={{
+                              width: pxW,
+                              height: pxH,
+                              position: 'relative',
+                              borderRadius: 12,
+                              border: `1px solid ${tokens.colorNeutralStroke2}`,
+                              background: tokens.colorNeutralBackground2,
+                              boxShadow: tokens.shadow4
+                            }}
+                          >
+                            {!plan?.boxes?.length ? (
+                              <div style={{ padding: 10 }}>
+                                <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
+                                  No layoutPlan for this slide yet.
+                                </Caption1>
+                              </div>
+                            ) : (
+                              plan.boxes.map((b: any, idx: number) => {
+                                const kind = String(b.kind || '');
+
+                                if (kind === 'image') {
+                                  return photoDataUri ? (
+                                    <div key={idx} style={boxStyle(b)}>
+                                      <img src={photoDataUri} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    </div>
+                                  ) : (
+                                    <div
+                                      key={idx}
+                                      style={{
+                                        ...boxStyle(b),
+                                        border: `1px dashed ${tokens.colorNeutralStroke2}`,
+                                        display: 'grid',
+                                        placeItems: 'center'
+                                      }}
+                                    >
+                                      <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>No image</Caption1>
+                                    </div>
+                                  );
+                                }
+
+                                if (kind === 'shape') {
+                                  return (
+                                    <div
+                                      key={idx}
+                                      style={{
+                                        ...boxStyle(b),
+                                        background: (b.fill as string) ? String(b.fill) : 'rgba(0,0,0,0.04)',
+                                        border: `1px solid ${tokens.colorNeutralStroke2}`
+                                      }}
+                                    />
+                                  );
+                                }
+
+                                const text = textForKind(kind);
+                                if (!text.trim()) return null;
+
+                                return (
+                                  <div key={idx} style={{ ...boxStyle(b), padding: 6 }}>
+                                    <pre
+                                      style={{
+                                        margin: 0,
+                                        whiteSpace: 'pre-wrap',
+                                        fontSize: kind === 'title' ? 14 : 10,
+                                        lineHeight: kind === 'title' ? '16px' : '12px',
+                                        color: tokens.colorNeutralForeground1,
+                                        fontFamily: 'Segoe UI, Arial, sans-serif'
+                                      }}
+                                    >
+                                      {text}
+                                    </pre>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </Card>
+
                   <Field label="AI edit this slide" hint="Try: 'make it a quote' or 'make it shorter'">
                     <Input
                       placeholder="Instruction…"
@@ -322,6 +481,16 @@ export function IdeaInputPanel() {
                           onClick={() => autoPickVisualForSlide(selectedSlide.id)}
                         >
                           Auto-pick visual
+                        </Button>
+                        <Button
+                          appearance="secondary"
+                          size="small"
+                          disabled={isGenerating}
+                          onClick={() => generateSpeakerNotesSmart(selectedSlide.id)}
+                        >
+                          {selectedSlide.speakerNotes && selectedSlide.speakerNotes.trim().length > 0
+                            ? 'Regenerate notes (this slide)'
+                            : 'Generate notes (missing)'}
                         </Button>
                       </div>
                       <Field label="AI image prompt (optional)" hint="Press Enter to generate and set this slide image">

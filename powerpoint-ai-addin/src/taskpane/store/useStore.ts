@@ -27,6 +27,12 @@ type Store = {
   status: Status;
   error: string | null;
 
+  // Stream/progress state (SSE)
+  streamStage: string | null;
+  streamEvents: Array<{ event: string; data: any }>;
+  streamWarnings: Array<{ stage: string; message: string }>;
+  streamQa: any | null;
+
   // legacy
   ai: AIService;
 
@@ -58,6 +64,9 @@ type Store = {
   insertCurrentDeck: () => Promise<void>;
   downloadPptx: () => Promise<void>;
   uploadPptxForViewing: (file: File) => Promise<void>;
+
+  generateSpeakerNotesSmart: (slideId: string) => Promise<void>;
+
   uploadedPptxViewerUrl?: string | null;
   uploadedPptxWarnings?: string[] | null;
 };
@@ -65,11 +74,18 @@ type Store = {
 export const useStore = create<Store>((set, get) => ({
   status: 'idle',
   error: null,
+  streamStage: null,
+  streamEvents: [],
+  streamWarnings: [],
+  streamQa: null,
 
-  ai: new AIService({ baseUrl: `http://localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
+  // IMPORTANT: When the taskpane is served over https (required by Office add-ins),
+  // browsers will block mixed-content calls to http://localhost:PORT.
+  // So we match the current page protocol (https/http).
+  ai: new AIService({ baseUrl: `${window.location.protocol}//localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
 
-  deckApi: new DeckApiClient({ baseUrl: `http://localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
-  styleApi: new StyleApiClient({ baseUrl: `http://localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
+  deckApi: new DeckApiClient({ baseUrl: `${window.location.protocol}//localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
+  styleApi: new StyleApiClient({ baseUrl: `${window.location.protocol}//localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
   deck: null,
   stylePresets: [],
   recommendedStyleId: null,
@@ -95,22 +111,66 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   generateDeck: async (prompt: string) => {
-    set({ status: 'generating', error: null });
+    set({
+      status: 'generating',
+      error: null,
+      streamStage: 'starting',
+      streamEvents: [],
+      streamWarnings: [],
+      streamQa: null
+    });
+
     try {
-      const resp = await get().deckApi.generateDeck({ prompt, slideCount: 6 });
-      if (!resp.success || !resp.deck) throw new Error(resp.error ?? 'Deck generation failed');
-      const stylePresets = (resp as any).stylePresets ?? [];
-      const recommendedStyleId = (resp as any).recommendedStyleId ?? null;
-      // Apply recommended theme + decoration immediately if provided
-      const rec = stylePresets.find((s: any) => s.id === recommendedStyleId);
-      const deck = rec?.theme
-        ? {
-            ...resp.deck,
-            theme: { ...resp.deck.theme, ...rec.theme },
-            decoration: (rec as any).decoration ?? (resp.deck as any).decoration
+      await get().deckApi.generateDeckStream({ prompt }, (evt) => {
+        set((s) => ({
+          ...s,
+          streamEvents: [...(s.streamEvents ?? []), evt].slice(-200)
+        }));
+
+        if (evt.event === 'stage:start' || evt.event === 'stage:end') {
+          const stage = String(evt.data?.stage ?? '');
+          if (stage) set({ streamStage: stage });
+        }
+
+        if (evt.event === 'warning') {
+          set((s) => ({
+            ...s,
+            streamWarnings: [
+              ...(s.streamWarnings ?? []),
+              { stage: String(evt.data?.stage ?? ''), message: String(evt.data?.message ?? '') }
+            ].slice(-200)
+          }));
+        }
+
+        if (evt.event === 'artifact' && evt.data?.stage === 'qa' && evt.data?.name === 'report') {
+          set({ streamQa: evt.data?.data ?? null });
+        }
+
+        if (evt.event === 'done') {
+          const deckId = String(evt.data?.deckId ?? '').trim();
+          const qa = evt.data?.qa ?? null;
+          if (qa) set({ streamQa: qa });
+
+          if (deckId) {
+            get()
+              .deckApi
+              .getDeck(deckId)
+              .then((resp) => {
+                if (!resp?.success || !resp?.deck) throw new Error(resp?.error ?? 'Failed to fetch deck');
+                set((s) => ({
+                  ...s,
+                  deck: resp.deck,
+                  status: 'done'
+                }));
+              })
+              .catch((e) => {
+                set({ status: 'error', error: e?.message ?? String(e) });
+              });
           }
-        : resp.deck;
-      set({ deck, stylePresets, recommendedStyleId, selectedStyleId: recommendedStyleId, status: 'done' });
+        }
+      });
+
+      // Stream might finish before the deck fetch returns.
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });
     }
@@ -262,21 +322,50 @@ export const useStore = create<Store>((set, get) => ({
     const trimmed = instruction.trim();
     if (!trimmed) return;
 
-    set({ status: 'generating', error: null });
+    set({
+      status: 'generating',
+      error: null,
+      streamStage: 'slide_edit',
+      streamEvents: [],
+      streamWarnings: [],
+      streamQa: null
+    });
+
     try {
-      const resp = await get().deckApi.aiEditSlide(deck.id, slideId, { instruction: trimmed });
-      if (!resp?.success) throw new Error(resp?.error ?? 'Slide edit failed');
+      await get().deckApi.aiEditSlideStream(deck.id, slideId, { instruction: trimmed }, (evt) => {
+        set((s) => ({
+          ...s,
+          streamEvents: [...(s.streamEvents ?? []), evt].slice(-200)
+        }));
 
-      const patch = resp.patch as Partial<Slide>;
+        if (evt.event === 'warning') {
+          set((s) => ({
+            ...s,
+            streamWarnings: [
+              ...(s.streamWarnings ?? []),
+              { stage: String(evt.data?.stage ?? ''), message: String(evt.data?.message ?? '') }
+            ].slice(-200)
+          }));
+        }
 
-      set((s) => {
-        if (!s.deck) return s as any;
-        const updated = {
-          ...s.deck,
-          slides: s.deck.slides.map((sl) => (sl.id === slideId ? ({ ...sl, ...patch, id: sl.id, order: sl.order } as any) : sl)),
-          metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
-        };
-        return { ...s, deck: updated, status: 'done' };
+        if (evt.event === 'done') {
+          const patch = evt.data?.patch as Partial<Slide> | undefined;
+          if (patch) {
+            set((s) => {
+              if (!s.deck) return s as any;
+              const updated = {
+                ...s.deck,
+                slides: s.deck.slides.map((sl) =>
+                  sl.id === slideId ? ({ ...sl, ...patch, id: sl.id, order: sl.order } as any) : sl
+                ),
+                metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
+              };
+              return { ...s, deck: updated, status: 'done' };
+            });
+          } else {
+            set({ status: 'done' });
+          }
+        }
       });
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });
@@ -402,6 +491,67 @@ export const useStore = create<Store>((set, get) => ({
         uploadedPptxViewerUrl: viewerUrl,
         uploadedPptxWarnings: (resp.warnings ?? null) as any
       });
+    } catch (e: any) {
+      set({ status: 'error', error: e?.message ?? String(e) });
+    }
+  },
+
+  generateSpeakerNotesSmart: async (slideId: string) => {
+    const deck = get().deck;
+    if (!deck) return;
+
+    const slide = deck.slides.find((s) => s.id === slideId);
+    if (!slide) return;
+
+    set({ status: 'generating', error: null });
+
+    try {
+      // If slide already has notes -> regenerate ONLY that slide.
+      // If missing -> generate for the whole deck (fills blanks).
+      if (slide.speakerNotes && slide.speakerNotes.trim().length > 0) {
+        const resp = await get().deckApi.generateSpeakerNotesForSlide(deck.id, slideId);
+        if (!resp?.success) throw new Error(resp?.error ?? 'Speaker notes generation failed');
+        const newNotes = String(resp.speakerNotes ?? '').trim();
+        if (!newNotes) throw new Error('No speaker notes returned');
+
+        set((s) => {
+          if (!s.deck) return s as any;
+          return {
+            ...s,
+            status: 'done',
+            deck: {
+              ...s.deck,
+              slides: s.deck.slides.map((sl) => (sl.id === slideId ? { ...sl, speakerNotes: newNotes } : sl)),
+              metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
+            }
+          };
+        });
+      } else {
+        const resp = await get().deckApi.generateSpeakerNotesForDeck(deck.id);
+        if (!resp?.success) throw new Error(resp?.error ?? 'Speaker notes generation failed');
+        // Backend updates DeckStore; easiest is to re-generate deck state by fetching updated deck via regenerate?
+        // We don't have a GET deck endpoint yet; so we locally fill missing notes using current content.
+        // (Pragmatic) Call per-slide regen for slides missing notes.
+        const missing = deck.slides.filter((sl) => !sl.speakerNotes || !sl.speakerNotes.trim());
+        for (const m of missing) {
+          const r2 = await get().deckApi.generateSpeakerNotesForSlide(deck.id, m.id);
+          if (r2?.success && r2?.speakerNotes) {
+            const note = String(r2.speakerNotes);
+            set((s) => {
+              if (!s.deck) return s as any;
+              return {
+                ...s,
+                deck: {
+                  ...s.deck,
+                  slides: s.deck.slides.map((sl) => (sl.id === m.id ? { ...sl, speakerNotes: note } : sl)),
+                  metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
+                }
+              };
+            });
+          }
+        }
+        set({ status: 'done' });
+      }
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });
     }
