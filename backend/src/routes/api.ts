@@ -590,9 +590,13 @@ Rules:
     }
 
     // Sectioning: use outline.sections when present; otherwise fall back to simple grouping.
+    // - labels: add a kicker label to the first slide in each section.
+    // - dividers: insert a dedicated divider slide at each section start.
     {
       const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
       const sections: any[] = Array.isArray((outline as any)?.sections) ? (outline as any).sections : [];
+
+      const sectionMode = String((outline as any)?.decoratePlan?.sectionMode || "none").toLowerCase();
 
       const applyLabel = (slideIndex: number, label: string) => {
         const s = slides[slideIndex];
@@ -601,29 +605,92 @@ Rules:
         (s as any).kicker = String(label || "").slice(0, 36);
       };
 
-      if ((outline as any).decoratePlan.sectionMode !== "none") {
-        if (sections.length) {
-          for (const sec of sections) {
-            const title = String(sec?.title || "").trim();
-            const start = Number(sec?.startIndex);
-            const end = Number(sec?.endIndex);
-            if (!title || !Number.isFinite(start) || !Number.isFinite(end)) continue;
+      const insertDividerAt = (slideIndex: number, title: string) => {
+        const idx = Math.max(0, Math.min(slides.length, slideIndex));
+        const divider = {
+          title: String(title || "").trim().slice(0, 120),
+          slideType: "content",
+          intent: "agenda",
+          priority: 2,
+          visualHint: "",
+          kicker: "SECTION",
+          content: [String(title || "").trim().slice(0, 140)],
+          dataPoints: [],
+          notes: "",
+          suggestedLayout: "",
+          layoutPlan: { variant: "content.statement" },
+        };
+        slides.splice(idx, 0, divider);
+      };
 
-            // Only label the first non-title slide in the section range.
-            for (let i = Math.max(0, start); i <= Math.min(slides.length - 1, end); i++) {
-              if (String(slides[i]?.slideType || "").toLowerCase() === "title") continue;
-              applyLabel(i, title.toUpperCase());
-              break;
+      if (sectionMode !== "none") {
+        if (sections.length) {
+          if (sectionMode === "dividers") {
+            // Insert divider slides in reverse index order so section indices remain stable.
+            const secsSorted = [...sections]
+              .map((s) => ({
+                title: String(s?.title || "").trim(),
+                startIndex: Number(s?.startIndex),
+                endIndex: Number(s?.endIndex),
+              }))
+              .filter((s) => s.title && Number.isFinite(s.startIndex) && Number.isFinite(s.endIndex))
+              .sort((a, b) => b.startIndex - a.startIndex);
+
+            for (const sec of secsSorted) {
+              // Skip if the target slide is the title slide.
+              if (String(slides[sec.startIndex]?.slideType || "").toLowerCase() === "title") continue;
+
+              insertDividerAt(sec.startIndex, sec.title);
+
+              // After insertion, shift indices for earlier processed sections (and for outline.sections for downstream consumers).
+              for (const s of sections) {
+                const st = Number(s?.startIndex);
+                const en = Number(s?.endIndex);
+                if (!Number.isFinite(st) || !Number.isFinite(en)) continue;
+                if (st >= sec.startIndex) (s as any).startIndex = st + 1;
+                if (en >= sec.startIndex) (s as any).endIndex = en + 1;
+              }
+            }
+          } else {
+            // labels
+            for (const sec of sections) {
+              const title = String(sec?.title || "").trim();
+              const start = Number(sec?.startIndex);
+              const end = Number(sec?.endIndex);
+              if (!title || !Number.isFinite(start) || !Number.isFinite(end)) continue;
+
+              // Only label the first non-title slide in the section range.
+              for (let i = Math.max(0, start); i <= Math.min(slides.length - 1, end); i++) {
+                if (String(slides[i]?.slideType || "").toLowerCase() === "title") continue;
+                applyLabel(i, title.toUpperCase());
+                break;
+              }
             }
           }
         } else {
+          // No outline.sections provided: fall back to simple grouping.
           const groupSize = 4;
-          for (let i = 0; i < slides.length; i++) {
-            const s = slides[i];
-            if (!s) continue;
-            if (String(s.slideType || "").toLowerCase() === "title") continue;
-            const sectionIndex = Math.floor(i / groupSize) + 1;
-            applyLabel(i, `SECTION ${sectionIndex}`);
+
+          if (sectionMode === "dividers") {
+            // Insert divider slides in reverse order by group start.
+            const groups: Array<{ startIndex: number; title: string }> = [];
+            for (let i = 0; i < slides.length; i += groupSize) {
+              groups.push({ startIndex: i, title: `Section ${Math.floor(i / groupSize) + 1}` });
+            }
+            groups.sort((a, b) => b.startIndex - a.startIndex);
+            for (const g of groups) {
+              if (String(slides[g.startIndex]?.slideType || "").toLowerCase() === "title") continue;
+              insertDividerAt(g.startIndex, g.title);
+            }
+          } else {
+            // labels
+            for (let i = 0; i < slides.length; i++) {
+              const s = slides[i];
+              if (!s) continue;
+              if (String(s.slideType || "").toLowerCase() === "title") continue;
+              const sectionIndex = Math.floor(i / groupSize) + 1;
+              applyLabel(i, `SECTION ${sectionIndex}`);
+            }
           }
         }
       }
