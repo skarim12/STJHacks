@@ -44,6 +44,7 @@ interface AppState {
 
   // Diagnostics from last finalize/deck render
   lastEnrichment: any | null;
+  lastSummary: string | null;
 
   // Optional deck-wide description hint (used for images/layout)
   deckDescribe: string;
@@ -61,6 +62,7 @@ interface AppState {
   setExternalImagesEnabled: (enabled: boolean) => void;
   setGeneratedImagesEnabled: (enabled: boolean) => void;
   setLastEnrichment: (enrichment: any | null) => void;
+  setLastSummary: (summary: string | null) => void;
   setDeckDescribe: (describe: string) => void;
   setSlideDescribe: (index: number, describe: string) => void;
   setDeckLook: (look: "default" | "light" | "dark" | "bold") => void;
@@ -106,6 +108,7 @@ export const useStore = create<AppState>((set, get) => ({
   externalImagesEnabled: false,
   generatedImagesEnabled: false,
   lastEnrichment: null,
+  lastSummary: null,
   deckDescribe: "",
   deckLook: "default",
 
@@ -124,6 +127,7 @@ export const useStore = create<AppState>((set, get) => ({
     })),
   setGeneratedImagesEnabled: (enabled) => set({ generatedImagesEnabled: enabled }),
   setLastEnrichment: (enrichment) => set({ lastEnrichment: enrichment }),
+  setLastSummary: (summary) => set({ lastSummary: summary }),
   setDeckDescribe: (describe) => {
     set({ deckDescribe: describe });
     const current = get().outline;
@@ -155,11 +159,15 @@ export const useStore = create<AppState>((set, get) => ({
       set({ error: "Generate an outline first, then apply a theme prompt." });
       return;
     }
-    set({ generating: true, error: null });
+    set({ generating: true, error: null, lastSummary: null });
     try {
       const resp = await get().aiService.themeFromPrompt(current, themePrompt);
       const next = resp?.outline || current;
-      set({ outline: next, slides: next.slides });
+      set({
+        outline: next,
+        slides: next.slides,
+        lastSummary: `Theme applied. look=${String((next as any)?.look || "default")}, panels=${String((next as any)?.themeStyle?.panels || "")}, bg=${String((next as any)?.colorScheme?.background || "")}`,
+      });
     } catch (err: any) {
       set({ error: err?.message || "Failed to apply theme" });
     } finally {
@@ -173,7 +181,7 @@ export const useStore = create<AppState>((set, get) => ({
       set({ error: "Generate an outline first, then decorate the deck." });
       return;
     }
-    set({ generating: true, error: null, lastEnrichment: null });
+    set({ generating: true, error: null, lastEnrichment: null, lastSummary: null });
     try {
       const resp = await get().aiService.decorateOutline(
         current,
@@ -183,7 +191,16 @@ export const useStore = create<AppState>((set, get) => ({
         "photo"
       );
       const next = resp?.outline || current;
-      set({ outline: next, slides: next.slides, lastEnrichment: resp?.enrichment || null });
+      const enrichment = resp?.enrichment || null;
+      const variants = Array.isArray((next as any)?.slides)
+        ? Array.from(new Set((next as any).slides.map((s: any) => String(s?.layoutPlan?.variant || "")))).filter(Boolean)
+        : [];
+      set({
+        outline: next,
+        slides: next.slides,
+        lastEnrichment: enrichment,
+        lastSummary: `Decorated deck. variants=${variants.length}, imagesAfter=${String(enrichment?.imagesAfter ?? "?")}`,
+      });
     } catch (err: any) {
       set({ error: err?.message || "Failed to decorate deck" });
     } finally {

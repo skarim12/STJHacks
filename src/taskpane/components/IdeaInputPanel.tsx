@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  Text,
   TextField,
   PrimaryButton,
   DefaultButton,
@@ -37,6 +38,7 @@ export const IdeaInputPanel: React.FC = () => {
   });
 
   const {
+    outline,
     generateFromIdea,
     applyThemePrompt,
     decorateDeck,
@@ -54,11 +56,28 @@ export const IdeaInputPanel: React.FC = () => {
     extractedText,
     lastEnrichment,
     setLastEnrichment,
+    lastSummary,
   } = useStore();
 
   const [editMessage, setEditMessage] = useState("");
   const [themePrompt, setThemePrompt] = useState("");
   const [decoratePrompt, setDecoratePrompt] = useState("");
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+
+  const themeChips = [
+    "Consulting minimal. Light background, flat panels, blue accent, high contrast.",
+    "Startup bold. Dark background, glass panels, neon accent, energetic.",
+    "Healthcare calm. Soft gradient, flat panels, teal accent, calm and clean.",
+    "Fintech serious. Deep navy background, cyan accent, subtle gradient, high contrast.",
+  ];
+
+  const decorateChips = [
+    "Increase layout variety (more grids/stacks/callouts).",
+    "Make typography more editorial: lead bullet bold, tighter spacing.",
+    "Add subtle motif shapes (ribbons / corner frames) and keep them consistent.",
+    "Add relevant imagery for every slide with an image slot; prefer professional photo style.",
+    "Add sections and labeling for structure.",
+  ];
 
   const w = window as any;
   const isOfficeHost = !!w.Office && typeof w.Office.onReady === "function";
@@ -148,8 +167,13 @@ export const IdeaInputPanel: React.FC = () => {
         onChange={(_, checked) => setPrefs((p) => ({ ...p, includeResearch: !!checked }))}
       />
 
+      <Text variant="mediumPlus">Workflow</Text>
+      <Text variant="small" styles={{ root: { color: "#666" } }}>
+        Step A: Generate content → Step B: Theme (deck-wide visuals) → Step C: Decorate (layouts/images/shapes) → Step D: Export PPTX.
+      </Text>
+
       <PrimaryButton
-        text="Generate Presentation"
+        text={outline ? "Regenerate Presentation" : "Generate Presentation"}
         onClick={handleGenerate}
         disabled={!debouncedIdea || generating}
         iconProps={{ iconName: "Lightbulb" }}
@@ -157,42 +181,81 @@ export const IdeaInputPanel: React.FC = () => {
 
       <TextField
         label="Theme prompt (background, shapes, mood)"
-        placeholder='Example: "Fintech. Dark navy background, neon cyan accent, angular ribbons, subtle grid dots. High contrast."'
+        placeholder='Example: "Fintech. Deep navy background, cyan accent, subtle gradient, glass panels. High contrast."'
         value={themePrompt}
         onChange={(_, v) => setThemePrompt(v || "")}
         disabled={generating}
       />
+      <Stack horizontal wrap tokens={{ childrenGap: 6 }}>
+        {themeChips.map((c) => (
+          <DefaultButton key={c} text={c.split(".")[0]} onClick={() => setThemePrompt((p) => (p ? `${p} ${c}` : c))} />
+        ))}
+      </Stack>
       <DefaultButton
         text="Apply Theme"
-        disabled={generating || !themePrompt.trim()}
+        disabled={generating || !themePrompt.trim() || !outline}
         onClick={() => applyThemePrompt(themePrompt.trim())}
       />
 
       <TextField
         label="Decorate prompt (images + polish)"
-        placeholder='Example: "Add relevant imagery to every slide that has an image slot. Keep consistent style. Improve composition."'
+        placeholder='Example: "Increase layout variety. Add subtle motif shapes. Add relevant imagery for slides with image slots."'
         value={decoratePrompt}
         onChange={(_, v) => setDecoratePrompt(v || "")}
         disabled={generating}
       />
+      <Stack horizontal wrap tokens={{ childrenGap: 6 }}>
+        {decorateChips.map((c) => (
+          <DefaultButton key={c} text={c.slice(0, 22) + (c.length > 22 ? "…" : "")} onClick={() => setDecoratePrompt((p) => (p ? `${p} ${c}` : c))} />
+        ))}
+      </Stack>
       <DefaultButton
         text="Decorate Deck"
-        disabled={generating || !decoratePrompt.trim()}
+        disabled={generating || !decoratePrompt.trim() || !outline}
         onClick={() => decorateDeck(decoratePrompt.trim())}
       />
+
+      {lastSummary && (
+        <MessageBar messageBarType={MessageBarType.info}>{lastSummary}</MessageBar>
+      )}
 
       {lastEnrichment && (
         <MessageBar
           messageBarType={
-            lastEnrichment?.imagesAdded > 0 ? MessageBarType.success : MessageBarType.warning
+            lastEnrichment?.imagesAfter > 0 ? MessageBarType.success : MessageBarType.warning
           }
         >
-          {lastEnrichment?.imagesAdded > 0
-            ? `Image enrichment: added ${lastEnrichment.imagesAdded} images (before ${lastEnrichment.imagesBefore}, after ${lastEnrichment.imagesAfter}).`
-            : `Image enrichment: added 0 images. First error: ${String(
+          {lastEnrichment?.imagesAfter > 0
+            ? `Images ready: ${lastEnrichment.imagesAfter} (added ${lastEnrichment.imagesAdded}).`
+            : `Images: none. First error: ${String(
                 lastEnrichment?.perSlide?.find((p: any) => p?.error)?.error || "(none)"
               ).slice(0, 240)}`}
         </MessageBar>
+      )}
+
+      <DefaultButton
+        text={showDiagnostics ? "Hide diagnostics" : "Show diagnostics"}
+        disabled={!outline}
+        onClick={() => setShowDiagnostics((s) => !s)}
+      />
+
+      {showDiagnostics && outline && (
+        <TextField
+          label="Diagnostics"
+          multiline
+          rows={10}
+          value={JSON.stringify(
+            {
+              look: (outline as any)?.look,
+              themeStyle: (outline as any)?.themeStyle,
+              colorScheme: (outline as any)?.colorScheme,
+              lastEnrichment,
+            },
+            null,
+            2
+          )}
+          readOnly
+        />
       )}
 
       <Stack tokens={{ childrenGap: 8 }}>
