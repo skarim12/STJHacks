@@ -1,5 +1,6 @@
 import { buildDefaultImageQuery, fetchSlideImageFromWikimedia, fetchSlideImageFromWikipedia } from "./externalImages";
 import { generateSlideImageOpenAI } from "./imageGeneration";
+import { generateIconTileDataUri } from "./iconFallback";
 
 export type ImageEnrichmentOptions = {
   allowExternalImages: boolean;
@@ -26,7 +27,7 @@ export type EnrichmentReport = {
     index: number;
     slideType: string;
     query: string;
-    source: "wikimedia" | "wikipedia" | "openai" | "none";
+    source: "wikimedia" | "wikipedia" | "openai" | "icon" | "none";
     error?: string;
   }>;
 };
@@ -181,6 +182,32 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             : allowExternalImages && !allowGeneratedImages
               ? "no image found (enable AI-generated fallback)"
               : "no image found";
+
+      // Final deterministic fallback: generate an icon tile so we never leave blank placeholders
+      // on slides that were selected for image filling.
+      try {
+        const scheme = outline?.colorScheme || {};
+        const icon = await generateIconTileDataUri({
+          deckTitle: outline?.title,
+          slideIndex: i,
+          slideTitle: s?.title,
+          accent: scheme?.accent || scheme?.primary,
+          secondary: scheme?.secondary,
+          background: scheme?.background,
+        });
+        if (icon?.dataUri) {
+          s.imageDataUri = icon.dataUri;
+          s.imageCredit = icon.credit;
+          s.imageSourcePage = "";
+          used++;
+          report.imagesAdded++;
+          report.imagesAfter = report.imagesBefore + report.imagesAdded;
+          report.perSlide.push({ index: i, slideType, query, source: "icon", error: finalError });
+          continue;
+        }
+      } catch (e: any) {
+        // ignore
+      }
 
       report.perSlide.push({ index: i, slideType, query, source: "none", error: finalError });
     }
