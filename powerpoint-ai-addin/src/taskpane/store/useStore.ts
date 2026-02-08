@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { AIService } from '../services/AIService';
 import { DeckApiClient } from '../services/DeckApiClient';
 import { getPowerPointService } from '../services/PowerPointService';
+import { StyleApiClient } from '../services/StyleApiClient';
 import type { DeckSchema, SelectedAsset, Slide } from '../types';
 
 type Status = 'idle' | 'generating' | 'error' | 'done';
@@ -31,10 +32,12 @@ type Store = {
 
   // new agent-style deck pipeline
   deckApi: DeckApiClient;
+  styleApi: StyleApiClient;
   deck: DeckSchema | null;
   stylePresets: any[];
   recommendedStyleId: string | null;
   selectedStyleId: string | null;
+  designPrompt: string;
   photoResultsBySlideId: Record<string, PhotoSearchResult[]>;
 
   ppt: ReturnType<typeof getPowerPointService>;
@@ -48,6 +51,7 @@ type Store = {
   aiEditSlide: (slideId: string, instruction: string) => Promise<void>;
   updateTheme: (patch: Partial<DeckSchema['theme']>) => void;
   applyStylePreset: (styleId: string) => void;
+  generateDesign: (designPrompt: string) => Promise<void>;
 
   insertCurrentDeck: () => Promise<void>;
 };
@@ -59,10 +63,12 @@ export const useStore = create<Store>((set, get) => ({
   ai: new AIService({ baseUrl: `http://localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
 
   deckApi: new DeckApiClient({ baseUrl: `http://localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
+  styleApi: new StyleApiClient({ baseUrl: `http://localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
   deck: null,
   stylePresets: [],
   recommendedStyleId: null,
   selectedStyleId: null,
+  designPrompt: '',
   photoResultsBySlideId: {},
 
   ppt: getPowerPointService(),
@@ -205,6 +211,43 @@ export const useStore = create<Store>((set, get) => ({
         }
       };
     });
+  },
+
+  generateDesign: async (designPrompt: string) => {
+    const deck = get().deck;
+    if (!deck) {
+      set({ error: 'Generate a deck first, then generate design.' });
+      return;
+    }
+
+    const trimmed = designPrompt.trim();
+    if (!trimmed) return;
+
+    set({ status: 'generating', error: null, designPrompt: trimmed });
+    try {
+      const resp = await get().styleApi.generateStyle({
+        deckTitle: deck.title,
+        deckPrompt: deck.description ?? deck.title,
+        designPrompt: trimmed
+      });
+      if (!resp?.success || !resp?.stylePreset) throw new Error(resp?.error ?? 'Style generation failed');
+
+      const preset = resp.stylePreset;
+      set((s) => ({
+        ...s,
+        status: 'done',
+        stylePresets: [preset, ...(s.stylePresets ?? [])],
+        selectedStyleId: preset.id,
+        recommendedStyleId: preset.id,
+        deck: {
+          ...deck,
+          theme: { ...deck.theme, ...preset.theme },
+          metadata: { ...deck.metadata, updatedAt: new Date().toISOString() }
+        }
+      }));
+    } catch (e: any) {
+      set({ status: 'error', error: e?.message ?? String(e) });
+    }
   },
 
   insertCurrentDeck: async () => {

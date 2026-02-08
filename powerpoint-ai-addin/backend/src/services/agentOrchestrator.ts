@@ -115,7 +115,8 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
         cornerBlobs: true,
         headerStripe: false,
         cardStyle: 'softShadow' as const,
-        imageTreatment: 'rounded' as const
+        imageTreatment: 'rounded' as const,
+        gradientCss: 'linear-gradient(135deg, hsl(220 70% 50% / 0.18) 0%, hsl(195 85% 55% / 0.10) 45%, hsl(220 15% 98% / 1) 100%)'
       }
     },
     {
@@ -127,7 +128,8 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
         cornerBlobs: false,
         headerStripe: true,
         cardStyle: 'flat' as const,
-        imageTreatment: 'rounded' as const
+        imageTreatment: 'rounded' as const,
+        gradientCss: 'linear-gradient(180deg, hsl(30 30% 98%) 0%, hsl(30 30% 99%) 100%)'
       }
     },
     {
@@ -145,7 +147,8 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
         cornerBlobs: false,
         headerStripe: true,
         cardStyle: 'softShadow' as const,
-        imageTreatment: 'square' as const
+        imageTreatment: 'square' as const,
+        gradientCss: 'linear-gradient(135deg, hsl(220 20% 12%) 0%, hsl(290 85% 60% / 0.22) 50%, hsl(210 90% 60% / 0.18) 100%)'
       }
     },
     {
@@ -157,7 +160,8 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
         cornerBlobs: true,
         headerStripe: true,
         cardStyle: 'flat' as const,
-        imageTreatment: 'rounded' as const
+        imageTreatment: 'rounded' as const,
+        gradientCss: 'linear-gradient(135deg, hsl(160 25% 98%) 0%, hsl(195 85% 50% / 0.12) 55%, hsl(145 70% 40% / 0.12) 100%)'
       }
     }
   ];

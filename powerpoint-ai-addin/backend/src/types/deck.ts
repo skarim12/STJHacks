@@ -95,6 +95,8 @@ export interface DecorationTokens {
   headerStripe: boolean;
   cardStyle: 'flat' | 'softShadow';
   imageTreatment: 'square' | 'rounded';
+  /** CSS linear-gradient(...) using hsl(...) */
+  gradientCss: string;
 }
 
 export interface StylePreset {

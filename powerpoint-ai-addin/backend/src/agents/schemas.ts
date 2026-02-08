@@ -70,6 +70,22 @@ export const SelectedAssetZ = z.object({
   altText: z.string()
 });
 
+export const DecorationTokensZ = z.object({
+  backgroundStyle: z.enum(['solid', 'softGradient', 'boldGradient']),
+  cornerBlobs: z.boolean(),
+  headerStripe: z.boolean(),
+  cardStyle: z.enum(['flat', 'softShadow']),
+  imageTreatment: z.enum(['square', 'rounded']),
+  gradientCss: z.string()
+});
+
+export const StylePresetZ = z.object({
+  id: z.string(),
+  name: z.string(),
+  theme: ThemeTokensZ,
+  decoration: DecorationTokensZ
+});
+
 export const SlideZ = z.object({
   id: z.string(),
   order: z.number().int().nonnegative(),

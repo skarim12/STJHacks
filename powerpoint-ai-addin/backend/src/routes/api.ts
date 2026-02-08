@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { deckRouter } from './deck.js';
 import { assetsRouter } from './assets.js';
+import { styleRouter } from './style.js';
 
 export const apiRouter = Router();
 
@@ -31,3 +32,4 @@ apiRouter.post('/outline', async (req, res) => {
 // New agent-style deck pipeline (Phase A-D)
 apiRouter.use('/deck', deckRouter);
 apiRouter.use('/assets', assetsRouter);
+apiRouter.use('/style', styleRouter);

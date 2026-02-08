@@ -134,8 +134,10 @@ export function IdeaInputPanel() {
     deck,
     stylePresets,
     selectedStyleId,
+    designPrompt,
     generateDeck,
     applyStylePreset,
+    generateDesign,
     updateTheme,
     aiEditSlide,
     searchPhotosForSlide,
@@ -146,6 +148,7 @@ export function IdeaInputPanel() {
   const isGenerating = status === 'generating';
 
   const [prompt, setPrompt] = useState('');
+  const [designText, setDesignText] = useState('');
   const [selectedSlideId, setSelectedSlideId] = useState<string | null>(null);
 
   const selectedSlide = useMemo(() => {
@@ -334,10 +337,36 @@ export function IdeaInputPanel() {
             <CardHeader header={<Subtitle2>Design</Subtitle2>} description={<Caption1>Style presets + theme</Caption1>} />
             <div className={styles.panelBody}>
               <Card className={styles.panel}>
-                <CardHeader header={<Subtitle2>Style gallery</Subtitle2>} description={<Caption1>Pick a generated style preset</Caption1>} />
+                <CardHeader
+                  header={<Subtitle2>AI Design</Subtitle2>}
+                  description={<Caption1>Generate scheme + gradient + decoration via LLM, then apply.</Caption1>}
+                />
                 <div className={styles.panelBody}>
+                  <Field label="Design prompt" hint="E.g. 'sleek dark neon, high contrast, minimal cards'">
+                    <Input
+                      value={designText}
+                      onChange={(_, d) => setDesignText(d.value)}
+                      placeholder="Describe the style you want…"
+                      disabled={isGenerating}
+                    />
+                  </Field>
+                  <div className={styles.row}>
+                    <Button
+                      appearance="primary"
+                      disabled={!designText.trim() || isGenerating || !deck}
+                      onClick={() => generateDesign(designText)}
+                    >
+                      {isGenerating ? 'Generating…' : 'Generate design'}
+                    </Button>
+                    <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
+                      Uses CLAUDE_API_KEY if set, else API_KEY (OpenAI)
+                    </Caption1>
+                  </div>
+
+                  {/* Show the latest style presets returned by deck generation or design generation */}
+                  <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Recent designs</Caption1>
                   <div className={styles.styleGrid}>
-                    {(stylePresets ?? []).map((p: any) => {
+                    {(stylePresets ?? []).slice(0, 4).map((p: any) => {
                       const isActive = p.id === selectedStyleId;
                       return (
                         <button
@@ -356,7 +385,7 @@ export function IdeaInputPanel() {
                             <span className={styles.swatch} style={{ background: `hsl(${p.theme.accentColor})` }} />
                             <span className={styles.swatch} style={{ background: `hsl(${p.theme.backgroundColor})` }} />
                           </div>
-                          <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>{p.decoration?.backgroundStyle ?? ''}</Caption1>
+                          <div style={{ marginTop: 6, height: 26, borderRadius: 10, border: `1px solid ${tokens.colorNeutralStroke2}`, background: p.decoration?.gradientCss }} />
                         </button>
                       );
                     })}
