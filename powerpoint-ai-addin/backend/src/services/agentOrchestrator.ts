@@ -95,12 +95,6 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
     }
   };
 
-  // Validate final deck contract
-  const validated = await runAgent({ name: 'Orchestrator.deck', schema: DeckSchemaZ, run: async () => deck });
-  if (!validated.ok) {
-    return { success: false, error: validated.error, warnings: ['Deck validation failed'] };
-  }
-
   // Style presets (fallback + baseline)
   const fallbackStylePresets = [
     {
@@ -203,6 +197,12 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
   }
   if (recPreset?.decoration) {
     (deck as any).decoration = recPreset.decoration;
+  }
+
+  // Validate final deck contract AFTER applying style/decoration
+  const validated = await runAgent({ name: 'Orchestrator.deck', schema: DeckSchemaZ, run: async () => deck });
+  if (!validated.ok) {
+    return { success: false, error: validated.error, warnings: ['Deck validation failed'] };
   }
 
   return {

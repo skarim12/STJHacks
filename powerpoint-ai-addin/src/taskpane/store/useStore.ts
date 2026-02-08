@@ -101,9 +101,15 @@ export const useStore = create<Store>((set, get) => ({
       if (!resp.success || !resp.deck) throw new Error(resp.error ?? 'Deck generation failed');
       const stylePresets = (resp as any).stylePresets ?? [];
       const recommendedStyleId = (resp as any).recommendedStyleId ?? null;
-      // Apply recommended theme immediately if provided
+      // Apply recommended theme + decoration immediately if provided
       const rec = stylePresets.find((s: any) => s.id === recommendedStyleId);
-      const deck = rec?.theme ? { ...resp.deck, theme: { ...resp.deck.theme, ...rec.theme } } : resp.deck;
+      const deck = rec?.theme
+        ? {
+            ...resp.deck,
+            theme: { ...resp.deck.theme, ...rec.theme },
+            decoration: (rec as any).decoration ?? (resp.deck as any).decoration
+          }
+        : resp.deck;
       set({ deck, stylePresets, recommendedStyleId, selectedStyleId: recommendedStyleId, status: 'done' });
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });
