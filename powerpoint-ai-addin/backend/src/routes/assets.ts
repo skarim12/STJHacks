@@ -63,7 +63,8 @@ assetsRouter.post('/search', async (req, res) => {
     const photos = data.photos ?? [];
 
     const results = photos.map((p) => {
-      const best = p.src?.large2x ?? p.src?.large ?? p.src?.original;
+      // Prefer smaller-than-original images for reliability in Office.js insertion.
+      const best = p.src?.large ?? p.src?.medium ?? p.src?.large2x ?? p.src?.original;
       const thumb = p.src?.medium ?? p.src?.small;
       return {
         provider: 'pexels',

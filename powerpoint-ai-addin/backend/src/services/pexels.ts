@@ -44,7 +44,9 @@ export const searchPexelsPhotos = async (query: string, count = 6): Promise<Pexe
   const photos = data.photos ?? [];
 
   return photos.map((p) => {
-    const best = p.src?.large2x ?? p.src?.large ?? p.src?.original;
+    // NOTE: large2x/original can be huge and tends to break Office.js addImage (base64 payload too large).
+    // Prefer a still-high-quality but smaller rendition.
+    const best = p.src?.large ?? p.src?.medium ?? p.src?.large2x ?? p.src?.original;
     const thumb = p.src?.medium ?? p.src?.small;
     return {
       provider: 'pexels',

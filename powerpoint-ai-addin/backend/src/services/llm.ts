@@ -5,10 +5,22 @@ const hasOpenAI = () => Boolean(String(process.env.API_KEY ?? '').trim());
 
 export type LlmProvider = 'anthropic' | 'openai';
 
-export const pickProvider = (): LlmProvider => {
-  if (hasAnthropic()) return 'anthropic';
+/**
+ * OpenClaw-style provider policy:
+ * - Prefer OpenAI when available (primary)
+ * - Fallback to Anthropic when OpenAI fails OR OpenAI key missing
+ */
+export const pickPrimaryProvider = (): LlmProvider => {
   if (hasOpenAI()) return 'openai';
-  throw new Error('No LLM API key found. Set CLAUDE_API_KEY (Anthropic) or API_KEY (OpenAI).');
+  if (hasAnthropic()) return 'anthropic';
+  throw new Error('No LLM API key found. Set API_KEY (OpenAI) or CLAUDE_API_KEY (Anthropic).');
+};
+
+export const pickFallbackProvider = (): LlmProvider | null => {
+  const primary = pickPrimaryProvider();
+  if (primary === 'openai' && hasAnthropic()) return 'anthropic';
+  if (primary === 'anthropic' && hasOpenAI()) return 'openai';
+  return null;
 };
 
 export type LlmCall = {
@@ -123,15 +135,24 @@ async function openaiGenerate(call: LlmCall): Promise<string> {
 }
 
 export async function llmGenerate(call: LlmCall): Promise<{ raw: string; provider: LlmProvider }> {
-  const provider = pickProvider();
+  const provider = pickPrimaryProvider();
 
-  if (provider === 'anthropic') {
-    const raw = await anthropicGenerate(call);
+  const tryCall = async (p: LlmProvider) => {
+    if (p === 'openai') return await openaiGenerate(call);
+    return await anthropicGenerate(call);
+  };
+
+  try {
+    const raw = await tryCall(provider);
     return { raw, provider };
+  } catch (e: any) {
+    const fallback = pickFallbackProvider();
+    if (!fallback) throw e;
+    // eslint-disable-next-line no-console
+    console.warn(`[llm] primary provider failed (${provider}); falling back to ${fallback}:`, e?.message ?? String(e));
+    const raw = await tryCall(fallback);
+    return { raw, provider: fallback };
   }
-
-  const raw = await openaiGenerate(call);
-  return { raw, provider };
 }
 
 export async function generateStylePresetLLM(opts: {
@@ -146,17 +167,47 @@ export async function generateStylePresetLLM(opts: {
 }
 
 export function extractFirstJsonObject(raw: string): any {
-  // Try direct parse first
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+
+  // 1) direct parse
   try {
-    return JSON.parse(raw);
+    return JSON.parse(cleaned);
   } catch {
-    // Attempt to extract the first {...} block
-    const start = raw.indexOf('{');
-    const end = raw.lastIndexOf('}');
-    if (start >= 0 && end > start) {
-      const slice = raw.slice(start, end + 1);
-      return JSON.parse(slice);
+    // 2) scan to extract first balanced JSON object/array
+    const s = cleaned;
+    const start = s.search(/[\[{]/);
+    if (start < 0) throw new Error('Could not parse JSON from LLM output');
+
+    const openChar = s[start];
+    const closeChar = openChar === '[' ? ']' : '}';
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = start; i < s.length; i++) {
+      const ch = s[i];
+      if (inString) {
+        if (escape) escape = false;
+        else if (ch === '\\') escape = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === openChar) depth++;
+      if (ch === closeChar) depth--;
+      if (depth === 0) {
+        const slice = s.slice(start, i + 1);
+        return JSON.parse(slice);
+      }
     }
-    throw new Error('Could not parse JSON from LLM output');
+
+    throw new Error('Could not parse JSON from LLM output (unbalanced)');
   }
 }

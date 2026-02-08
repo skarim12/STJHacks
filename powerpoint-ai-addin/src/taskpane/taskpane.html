@@ -6,6 +6,9 @@
     <title>PowerPoint AI Add-in - Taskpane Preview</title>
   </head>
   <body>
+    <!-- Office.js is required for running inside PowerPoint (Office.onReady, PowerPoint.run, etc.) -->
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
     <script>
       // Provided by HtmlWebpackPlugin templateParameters
       window.__BACKEND_PORT__ = "<%= htmlWebpackPlugin.options.templateParameters.BACKEND_PORT %>";

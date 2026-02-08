@@ -37,6 +37,36 @@ export interface SelectedAsset {
   altText: string;
 }
 
+export interface LayoutBox {
+  id: string;
+  kind: 'title' | 'subtitle' | 'bullets' | 'body' | 'image' | 'shape';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+
+  // Text styling (optional; renderer will apply safe defaults/fallbacks)
+  fontFace?: string;
+  fontSize?: number;
+  color?: string; // hex like #RRGGBB
+  bold?: boolean;
+  italic?: boolean;
+  align?: 'left' | 'center' | 'right';
+  valign?: 'top' | 'middle' | 'bottom';
+
+  // For shapes
+  fill?: string; // hex
+  line?: string; // hex
+  radius?: number; // for rounded rects
+}
+
+export interface SlideLayoutPlan {
+  version: '1.0';
+  slideW: number; // inches (PPT wide is 13.333)
+  slideH: number; // inches (PPT wide is 7.5)
+  boxes: LayoutBox[];
+}
+
 export interface Slide {
   id: string;
   order: number;
@@ -51,6 +81,12 @@ export interface Slide {
 
   /** Resolved/selected visuals to use when rendering. */
   selectedAssets?: SelectedAsset[];
+
+  /**
+   * AI-generated raw layout plan (exact box positions/sizes).
+   * If missing, renderers fall back to deterministic templates.
+   */
+  layoutPlan?: SlideLayoutPlan;
 
   leftColumn?: { heading?: string; bullets?: string[] };
   rightColumn?: { heading?: string; bullets?: string[] };
@@ -117,6 +153,8 @@ export interface DeckGenerationResponse {
   recommendedStyleId?: string;
   assets?: AssetManifest;
   renderPlan?: RenderPlan;
+  /** Optional QA report emitted by the orchestrator. */
+  qa?: { pass: boolean; score: number; issues: Array<{ level: string; slideId?: string; message: string }> };
   error?: string;
   warnings?: string[];
 }

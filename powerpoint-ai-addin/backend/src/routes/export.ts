@@ -126,16 +126,6 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
   // Apply theme background (gradient approximation if provided)
   addBackground(s, deck);
 
-  // Layout constants for LAYOUT_WIDE (13.333 x 7.5)
-  const marginX = 0.5;
-  const titleY = 0.35;
-  const bodyY = 1.25;
-
-  const hasPhoto = Boolean(slide.selectedAssets?.find((a) => a.kind === 'photo' && a.dataUri));
-
-  const titleW = 12.3;
-  const bodyW = hasPhoto ? 6.3 : 12.3;
-
   const titleColor = deck.theme?.accentColor ? hslTripletToHex(deck.theme.accentColor) : '111111';
   const bodyColor = deck.theme?.textColor ? hslTripletToHex(deck.theme.textColor) : '222222';
 
@@ -152,6 +142,86 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
     });
   }
 
+  const plan = (slide as any).layoutPlan as any | undefined;
+  const photo = slide.selectedAssets?.find((a) => a.kind === 'photo' && a.dataUri)?.dataUri;
+  const photoB64 = photo ? (photo.includes(',') ? photo.split(',')[1] : photo) : null;
+
+  // Heuristic font auto-fit.
+  const autoFitFont = (text: string, w: number, h: number, base: number) => {
+    const area = Math.max(0.1, w * h);
+    const density = text.length / area;
+    const shrink = density > 180 ? 0.55 : density > 130 ? 0.7 : density > 95 ? 0.82 : 1;
+    return clamp(Math.round(base * shrink), 10, 44);
+  };
+
+  if (plan?.boxes?.length) {
+    for (const b of plan.boxes) {
+      const kind = String(b.kind || 'body');
+      const x = Number(b.x || 0);
+      const y = Number(b.y || 0);
+      const w = Number(b.w || 1);
+      const h = Number(b.h || 1);
+
+      if (kind === 'image') {
+        if (photoB64) {
+          s.addImage({ data: photoB64, x, y, w, h });
+        }
+        continue;
+      }
+
+      if (kind === 'shape') {
+        const fill = String(b.fill || '').replace(/^#/, '').toUpperCase();
+        const line = String(b.line || '').replace(/^#/, '').toUpperCase();
+        const radius = Number(b.radius || 0);
+        const shapeType = radius > 0.05 ? 'roundRect' : 'rect';
+        s.addShape(shapeType, {
+          x,
+          y,
+          w,
+          h,
+          fill: fill ? { color: fill, transparency: 15 } : undefined,
+          line: line ? { color: line, transparency: 70 } : undefined,
+          radius: radius || undefined
+        });
+        continue;
+      }
+
+      let text = '';
+      if (kind === 'title') text = slide.title || '';
+      else if (kind === 'subtitle') text = slide.subtitle || '';
+      else if (kind === 'bullets') text = (slide.bullets ?? []).map((t) => `• ${t}`).join('\n');
+      else if (kind === 'body') text = slide.bodyText || '';
+
+      if (!text.trim()) continue;
+
+      const baseSize = Number(b.fontSize || (kind === 'title' ? 34 : kind === 'subtitle' ? 18 : 16));
+      const fontSize = autoFitFont(text, w, h, baseSize);
+
+      const color = (String(b.color || '') || (kind === 'title' ? titleColor : bodyColor)).replace(/^#/, '').toUpperCase();
+
+      s.addText(text, {
+        x,
+        y,
+        w,
+        h,
+        fontFace: String(b.fontFace || (kind === 'title' ? deck.theme?.fontHeading : deck.theme?.fontBody) || 'Calibri'),
+        fontSize,
+        color,
+        valign: String(b.valign || 'top'),
+        align: String(b.align || 'left')
+      });
+    }
+    return;
+  }
+
+  // Fallback deterministic layout
+  const marginX = 0.5;
+  const titleY = 0.35;
+  const bodyY = 1.25;
+  const hasPhoto = Boolean(photoB64);
+  const titleW = 12.3;
+  const bodyW = hasPhoto ? 6.3 : 12.3;
+
   s.addText(slide.title || '', {
     x: marginX,
     y: titleY,
@@ -162,14 +232,8 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
     color: titleColor
   });
 
-  const bodyLines = slide.bullets?.length
-    ? slide.bullets.map((b) => `• ${b}`)
-    : slide.bodyText
-      ? [slide.bodyText]
-      : [];
-
+  const bodyLines = slide.bullets?.length ? slide.bullets.map((b) => `• ${b}`) : slide.bodyText ? [slide.bodyText] : [];
   if (bodyLines.length) {
-    // Optional "card" behind body text
     if (deck.decoration?.cardStyle === 'softShadow') {
       const cardHex = deck.theme?.secondaryColor ? hslTripletToHex(deck.theme.secondaryColor) : 'FFFFFF';
       s.addShape('roundRect', {
@@ -182,7 +246,6 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
         radius: 0.16
       });
     }
-
     s.addText(bodyLines.join('\n'), {
       x: marginX,
       y: bodyY,
@@ -195,18 +258,8 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
     });
   }
 
-  // Image on the right (if present)
-  const photo = slide.selectedAssets?.find((a) => a.kind === 'photo' && a.dataUri)?.dataUri;
-  if (photo) {
-    const b64 = photo.includes(',') ? photo.split(',')[1] : photo;
-    // PNG/JPG both work; we pass base64 and let pptxgen handle.
-    s.addImage({
-      data: b64,
-      x: 7.4,
-      y: bodyY,
-      w: 5.4,
-      h: 4.05
-    });
+  if (photoB64) {
+    s.addImage({ data: photoB64, x: 7.4, y: bodyY, w: 5.4, h: 4.05 });
   }
 }
 

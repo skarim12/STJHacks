@@ -70,6 +70,32 @@ export const SelectedAssetZ = z.object({
   altText: z.string()
 });
 
+export const LayoutBoxZ = z.object({
+  id: z.string(),
+  kind: z.enum(['title', 'subtitle', 'bullets', 'body', 'image', 'shape']),
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+  fontFace: z.string().optional(),
+  fontSize: z.number().optional(),
+  color: z.string().optional(),
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
+  align: z.enum(['left', 'center', 'right']).optional(),
+  valign: z.enum(['top', 'middle', 'bottom']).optional(),
+  fill: z.string().optional(),
+  line: z.string().optional(),
+  radius: z.number().optional()
+});
+
+export const SlideLayoutPlanZ = z.object({
+  version: z.literal('1.0'),
+  slideW: z.number(),
+  slideH: z.number(),
+  boxes: z.array(LayoutBoxZ).min(1)
+});
+
 export const DecorationTokensZ = z.object({
   backgroundStyle: z.enum(['solid', 'softGradient', 'boldGradient']),
   cornerBlobs: z.boolean(),
@@ -105,7 +131,8 @@ export const SlideZ = z.object({
     .object({ heading: z.string().optional(), bullets: z.array(z.string()).optional() })
     .optional(),
   quote: z.object({ text: z.string(), attribution: z.string().optional() }).optional(),
-  visualIntent: VisualIntentZ.optional()
+  visualIntent: VisualIntentZ.optional(),
+  layoutPlan: SlideLayoutPlanZ.optional()
 });
 
 export const DeckMetadataZ = z.object({

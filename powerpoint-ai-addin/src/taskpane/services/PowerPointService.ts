@@ -143,7 +143,9 @@ class OfficePowerPointService implements IPowerPointService {
       const shapes = created.shapes;
 
       const photoDataUri = slide.selectedAssets?.find((a) => a.kind === 'photo' && a.dataUri)?.dataUri;
-      const photoBase64 = photoDataUri ? (photoDataUri.includes(',') ? photoDataUri.split(',')[1] : photoDataUri) : null;
+      const photoBase64Raw = photoDataUri ? (photoDataUri.includes(',') ? photoDataUri.split(',')[1] : photoDataUri) : null;
+      // Normalize base64: Office.js is picky about whitespace/newlines.
+      const photoBase64 = photoBase64Raw ? photoBase64Raw.replace(/\s+/g, '') : null;
 
       const addImageBestEffort = (left: number, top: number, width: number, height: number) => {
         if (!photoDataUri && !photoBase64) return;

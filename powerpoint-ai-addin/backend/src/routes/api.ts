@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import { deckRouter } from './deck.js';
+import { deckExtrasRouter } from './deckExtras.js';
+import { deckStreamRouter } from './deckStream.js';
 import { assetsRouter } from './assets.js';
 import { styleRouter } from './style.js';
 import { exportRouter } from './export.js';
 import { uploadRouter } from './upload.js';
+import { speakerNotesRouter } from './speakerNotes.js';
 
 export const apiRouter = Router();
 
@@ -33,6 +36,10 @@ apiRouter.post('/outline', async (req, res) => {
 
 // New agent-style deck pipeline (Phase A-D)
 apiRouter.use('/deck', deckRouter);
+apiRouter.use('/deck', deckExtrasRouter);
+apiRouter.use('/deck', deckStreamRouter);
+// Speaker notes regeneration lives under /api/deck/:deckId/speaker-notes/generate
+apiRouter.use('/deck', speakerNotesRouter);
 apiRouter.use('/assets', assetsRouter);
 apiRouter.use('/style', styleRouter);
 apiRouter.use('/export', exportRouter);
