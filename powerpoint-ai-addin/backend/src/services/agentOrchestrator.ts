@@ -104,9 +104,71 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
     return { success: false, error: validated.error, warnings: ['Deck validation failed'] };
   }
 
+  // Style presets (deterministic for now)
+  const stylePresets = [
+    {
+      id: 'style-modern',
+      name: 'Modern Blue',
+      theme: { ...DEFAULT_THEME, primaryColor: '220 70% 50%', accentColor: '35 90% 55%', backgroundColor: '220 15% 98%' },
+      decoration: {
+        backgroundStyle: 'softGradient' as const,
+        cornerBlobs: true,
+        headerStripe: false,
+        cardStyle: 'softShadow' as const,
+        imageTreatment: 'rounded' as const
+      }
+    },
+    {
+      id: 'style-warm',
+      name: 'Warm Minimal',
+      theme: { ...DEFAULT_THEME, primaryColor: '18 85% 55%', accentColor: '45 95% 55%', backgroundColor: '30 30% 98%' },
+      decoration: {
+        backgroundStyle: 'solid' as const,
+        cornerBlobs: false,
+        headerStripe: true,
+        cardStyle: 'flat' as const,
+        imageTreatment: 'rounded' as const
+      }
+    },
+    {
+      id: 'style-dark',
+      name: 'Dark Punchy',
+      theme: {
+        ...DEFAULT_THEME,
+        primaryColor: '210 90% 60%',
+        accentColor: '290 85% 60%',
+        backgroundColor: '220 20% 12%',
+        textColor: '0 0% 98%'
+      },
+      decoration: {
+        backgroundStyle: 'boldGradient' as const,
+        cornerBlobs: false,
+        headerStripe: true,
+        cardStyle: 'softShadow' as const,
+        imageTreatment: 'square' as const
+      }
+    },
+    {
+      id: 'style-green',
+      name: 'Fresh Green',
+      theme: { ...DEFAULT_THEME, primaryColor: '145 70% 40%', accentColor: '195 85% 50%', backgroundColor: '160 25% 98%' },
+      decoration: {
+        backgroundStyle: 'softGradient' as const,
+        cornerBlobs: true,
+        headerStripe: true,
+        cardStyle: 'flat' as const,
+        imageTreatment: 'rounded' as const
+      }
+    }
+  ];
+
+  const recommendedStyleId = stylePresets[0].id;
+
   return {
     success: true,
     deck: validated.value,
+    stylePresets,
+    recommendedStyleId,
     assets: assetOut.assets,
     renderPlan,
     warnings: warnings.length ? warnings : undefined

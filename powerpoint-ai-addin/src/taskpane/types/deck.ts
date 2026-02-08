@@ -129,9 +129,26 @@ export interface DeckGenerationRequest {
 }
 
 // Generation response from backend
+export interface DecorationTokens {
+  backgroundStyle: 'solid' | 'softGradient' | 'boldGradient';
+  cornerBlobs: boolean;
+  headerStripe: boolean;
+  cardStyle: 'flat' | 'softShadow';
+  imageTreatment: 'square' | 'rounded';
+}
+
+export interface StylePreset {
+  id: string;
+  name: string;
+  theme: ThemeTokens;
+  decoration: DecorationTokens;
+}
+
 export interface DeckGenerationResponse {
   success: boolean;
   deck?: DeckSchema;
+  stylePresets?: StylePreset[];
+  recommendedStyleId?: string;
   error?: string;
   warnings?: string[];
 }

@@ -32,6 +32,9 @@ type Store = {
   // new agent-style deck pipeline
   deckApi: DeckApiClient;
   deck: DeckSchema | null;
+  stylePresets: any[];
+  recommendedStyleId: string | null;
+  selectedStyleId: string | null;
   photoResultsBySlideId: Record<string, PhotoSearchResult[]>;
 
   ppt: ReturnType<typeof getPowerPointService>;
@@ -44,6 +47,7 @@ type Store = {
 
   aiEditSlide: (slideId: string, instruction: string) => Promise<void>;
   updateTheme: (patch: Partial<DeckSchema['theme']>) => void;
+  applyStylePreset: (styleId: string) => void;
 
   insertCurrentDeck: () => Promise<void>;
 };
@@ -56,6 +60,9 @@ export const useStore = create<Store>((set, get) => ({
 
   deckApi: new DeckApiClient({ baseUrl: `http://localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
   deck: null,
+  stylePresets: [],
+  recommendedStyleId: null,
+  selectedStyleId: null,
   photoResultsBySlideId: {},
 
   ppt: getPowerPointService(),
@@ -80,7 +87,12 @@ export const useStore = create<Store>((set, get) => ({
     try {
       const resp = await get().deckApi.generateDeck({ prompt, slideCount: 6 });
       if (!resp.success || !resp.deck) throw new Error(resp.error ?? 'Deck generation failed');
-      set({ deck: resp.deck, status: 'done' });
+      const stylePresets = (resp as any).stylePresets ?? [];
+      const recommendedStyleId = (resp as any).recommendedStyleId ?? null;
+      // Apply recommended theme immediately if provided
+      const rec = stylePresets.find((s: any) => s.id === recommendedStyleId);
+      const deck = rec?.theme ? { ...resp.deck, theme: { ...resp.deck.theme, ...rec.theme } } : resp.deck;
+      set({ deck, stylePresets, recommendedStyleId, selectedStyleId: recommendedStyleId, status: 'done' });
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });
     }
@@ -172,6 +184,23 @@ export const useStore = create<Store>((set, get) => ({
         deck: {
           ...s.deck,
           theme: { ...s.deck.theme, ...patch },
+          metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
+        }
+      };
+    });
+  },
+
+  applyStylePreset: (styleId: string) => {
+    set((s) => {
+      if (!s.deck) return s as any;
+      const preset = (s.stylePresets ?? []).find((p: any) => p.id === styleId);
+      if (!preset) return s as any;
+      return {
+        ...s,
+        selectedStyleId: styleId,
+        deck: {
+          ...s.deck,
+          theme: { ...s.deck.theme, ...preset.theme },
           metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
         }
       };

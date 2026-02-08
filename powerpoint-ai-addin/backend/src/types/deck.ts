@@ -89,9 +89,26 @@ export interface DeckGenerationRequest {
   tone?: 'formal' | 'casual' | 'technical' | 'creative';
 }
 
+export interface DecorationTokens {
+  backgroundStyle: 'solid' | 'softGradient' | 'boldGradient';
+  cornerBlobs: boolean;
+  headerStripe: boolean;
+  cardStyle: 'flat' | 'softShadow';
+  imageTreatment: 'square' | 'rounded';
+}
+
+export interface StylePreset {
+  id: string;
+  name: string;
+  theme: ThemeTokens;
+  decoration: DecorationTokens;
+}
+
 export interface DeckGenerationResponse {
   success: boolean;
   deck?: DeckSchema;
+  stylePresets?: StylePreset[];
+  recommendedStyleId?: string;
   assets?: AssetManifest;
   renderPlan?: RenderPlan;
   error?: string;

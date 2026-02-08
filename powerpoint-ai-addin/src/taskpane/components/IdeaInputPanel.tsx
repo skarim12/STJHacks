@@ -1,26 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Badge,
+  Body1,
   Button,
-  Field,
-  Textarea,
-  Spinner,
+  Caption1,
   Card,
   CardHeader,
-  tokens,
-  makeStyles,
-  Subtitle2,
-  Title2,
-  Body1,
-  Badge,
-  Caption1,
+  Field,
   Input,
-  Tab,
-  TabList
+  Subtitle2,
+  Textarea,
+  Title2,
+  makeStyles,
+  tokens
 } from '@fluentui/react-components';
 import { useStore } from '../store/useStore';
 
 const useStyles = makeStyles({
-  wrap: {
+  page: {
     display: 'grid',
     gap: '12px'
   },
@@ -41,57 +38,71 @@ const useStyles = makeStyles({
     display: 'grid',
     gap: '4px'
   },
-  contentCard: {
+  shell: {
+    display: 'grid',
+    gap: '12px',
+    gridTemplateColumns: '240px 1fr 320px',
+    alignItems: 'start',
+    '@media (max-width: 980px)': {
+      gridTemplateColumns: '1fr'
+    }
+  },
+  panel: {
     borderRadius: tokens.borderRadiusXLarge,
     boxShadow: tokens.shadow8,
     border: `1px solid ${tokens.colorNeutralStroke2}`
   },
-  cardBody: {
+  panelBody: {
+    padding: '12px',
     display: 'grid',
-    gap: '12px',
-    padding: '16px'
+    gap: '10px'
   },
-  actionsRow: {
-    display: 'flex',
-    gap: '10px',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap'
-  },
-  actionsLeft: {
-    display: 'flex',
-    gap: '10px',
-    alignItems: 'center',
-    flexWrap: 'wrap'
-  },
-  examples: {
-    display: 'flex',
-    flexWrap: 'wrap',
+  slideList: {
+    display: 'grid',
     gap: '8px'
   },
-  exampleBtn: {
-    borderRadius: '999px',
-    padding: '6px 10px',
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
-    backgroundColor: tokens.colorNeutralBackground2,
-    cursor: 'pointer',
-    fontSize: '12px',
-    color: tokens.colorNeutralForeground2,
-    ':hover': {
-      backgroundColor: tokens.colorNeutralBackground3,
-      color: tokens.colorNeutralForeground1,
-      border: `1px solid ${tokens.colorBrandStroke1}`
-    }
-  },
-  slideCard: {
+  slideItem: {
+    width: '100%',
+    textAlign: 'left',
+    padding: '10px',
     borderRadius: tokens.borderRadiusLarge,
-    border: `1px solid ${tokens.colorNeutralStroke2}`
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: tokens.colorNeutralBackground1,
+    cursor: 'pointer'
   },
-  slideGrid: {
+  slideItemActive: {
+    border: `2px solid ${tokens.colorBrandStroke1}`,
+    backgroundColor: tokens.colorNeutralBackground2
+  },
+  row: {
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap',
+    alignItems: 'center'
+  },
+  styleGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr',
-    gap: '10px',
-    padding: '12px'
+    gridTemplateColumns: '1fr 1fr',
+    gap: '8px'
+  },
+  styleCardBtn: {
+    textAlign: 'left',
+    padding: '10px',
+    borderRadius: tokens.borderRadiusLarge,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: tokens.colorNeutralBackground1,
+    cursor: 'pointer'
+  },
+  swatches: {
+    display: 'flex',
+    gap: '6px',
+    marginTop: '6px'
+  },
+  swatch: {
+    width: '14px',
+    height: '14px',
+    borderRadius: '999px',
+    border: `1px solid ${tokens.colorNeutralStroke2}`
   },
   thumbRow: {
     display: 'flex',
@@ -116,42 +127,57 @@ const useStyles = makeStyles({
 
 export function IdeaInputPanel() {
   const styles = useStyles();
-  const [idea, setIdea] = useState('');
-  const [tab, setTab] = useState<'generate' | 'slides' | 'theme' | 'export'>('generate');
+
   const {
     status,
     error,
     deck,
+    stylePresets,
+    selectedStyleId,
     generateDeck,
+    applyStylePreset,
+    updateTheme,
+    aiEditSlide,
     searchPhotosForSlide,
     selectPhotoForSlide,
-    photoResultsBySlideId,
-    aiEditSlide,
-    updateTheme,
-    insertCurrentDeck
+    photoResultsBySlideId
   } = useStore();
 
   const isGenerating = status === 'generating';
 
-  const examples = useMemo(
+  const [prompt, setPrompt] = useState('');
+  const [selectedSlideId, setSelectedSlideId] = useState<string | null>(null);
+
+  const selectedSlide = useMemo(() => {
+    if (!deck) return null;
+    return deck.slides.find((s) => s.id === selectedSlideId) ?? deck.slides[0] ?? null;
+  }, [deck, selectedSlideId]);
+
+  // Ensure a selected slide when a deck appears
+  useEffect(() => {
+    if (!deck) return;
+    setSelectedSlideId((prev) => prev ?? deck.slides[0]?.id ?? null);
+  }, [deck]);
+
+  const examplePrompts = useMemo(
     () => [
-      'Quarterly Business Review: revenue, pipeline, wins, and Q2 plan',
       'AI startup pitch deck: problem, solution, moat, GTM, traction',
-      'Engineering onboarding: tooling, codebase map, best practices',
-      'Product roadmap: themes, milestones, risks, dependencies'
+      'Quarterly business review: revenue, pipeline, wins, Q2 plan',
+      'Product roadmap: themes, milestones, risks, dependencies',
+      'Onboarding for new engineers: architecture, tools, best practices'
     ],
     []
   );
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.page}>
       <div className={styles.hero}>
         <div className={styles.heroTop}>
           <div className={styles.heroText}>
             <Subtitle2>STJHacks Prototype</Subtitle2>
-            <Title2>Deck Generator (future PowerPoint add-in)</Title2>
+            <Title2>Deck Generator (web demo)</Title2>
             <Body1 style={{ color: tokens.colorNeutralForeground2 }}>
-              Generate a designed outline + choose stock images (Pexels) per slide, then insert into PowerPoint.
+              Generate everything at once: slides + visuals + style presets, then edit in one unified editor.
             </Body1>
           </div>
           <Badge appearance="filled" color="brand">
@@ -160,216 +186,240 @@ export function IdeaInputPanel() {
         </div>
       </div>
 
-      <TabList
-        selectedValue={tab}
-        onTabSelect={(_, data) => setTab(data.value as any)}
-        style={{ marginBottom: 10 }}
-      >
-        <Tab value="generate">Generate</Tab>
-        <Tab value="slides" disabled={!deck}>
-          Slides
-        </Tab>
-        <Tab value="theme" disabled={!deck}>
-          Theme
-        </Tab>
-        <Tab value="export" disabled={!deck}>
-          Export
-        </Tab>
-      </TabList>
-
-      {!deck || tab === 'generate' ? (
-        <Card className={styles.contentCard}>
-          <CardHeader
-            header={<Subtitle2>Generate a deck</Subtitle2>}
-            description={<Caption1>Tip: include audience + goal + time limit for sharper slides.</Caption1>}
-          />
-          <div className={styles.cardBody}>
-            <Field label="Describe your presentation" hint="What is it about, who is it for, and what should they do/learn?">
-              <Textarea
-                resize="vertical"
-                rows={8}
-                placeholder="E.g., A quarterly business review showing sales growth, key challenges, and Q2 strategy…"
-                value={idea}
-                onChange={(e) => setIdea((e.target as HTMLTextAreaElement).value)}
-                disabled={isGenerating}
-              />
-            </Field>
-
-            <div>
-              <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Examples</Caption1>
-              <div className={styles.examples}>
-                {examples.map((ex) => (
-                  <button
-                    key={ex}
-                    type="button"
-                    className={styles.exampleBtn}
-                    onClick={() => setIdea(ex)}
-                    disabled={isGenerating}
-                  >
-                    {ex}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className={styles.actionsRow}>
-              <div className={styles.actionsLeft}>
-                <Button appearance="primary" disabled={!idea.trim() || isGenerating} onClick={() => generateDeck(idea)}>
-                  {isGenerating ? 'Generating…' : 'Generate Deck'}
-                </Button>
-                {isGenerating ? <Spinner size="small" /> : null}
-              </div>
-              <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
-                {isGenerating ? 'Running agents (outline + visuals + layout)' : 'Stock preferred; AI fallback later'}
-              </Caption1>
-            </div>
-
-            {error ? <div className={styles.error}>{error}</div> : null}
-          </div>
-        </Card>
-      ) : tab === 'slides' ? (
-        <div className={styles.wrap}>
-          <Card className={styles.contentCard}>
-            <CardHeader
-              header={<Subtitle2>{deck.title}</Subtitle2>}
-              description={<Caption1>{deck.slides.length} slides • pick images per slide, then insert</Caption1>}
+      {/* Generate is ALWAYS visible */}
+      <Card className={styles.panel}>
+        <CardHeader
+          header={<Subtitle2>Generate / Regenerate</Subtitle2>}
+          description={
+            <Caption1>
+              {deck ? 'Regenerate replaces the deck (theme can be re-applied from style presets).' : 'Create a new deck from a prompt.'}
+            </Caption1>
+          }
+        />
+        <div className={styles.panelBody}>
+          <Field label="Prompt">
+            <Textarea
+              resize="vertical"
+              rows={4}
+              value={prompt}
+              onChange={(e) => setPrompt((e.target as HTMLTextAreaElement).value)}
+              placeholder="Describe the deck you want..."
+              disabled={isGenerating}
             />
-            <div className={styles.cardBody}>
-              <Button appearance="primary" onClick={insertCurrentDeck} disabled={isGenerating}>
-                Insert deck into PowerPoint
+          </Field>
+
+          <div className={styles.row}>
+            {examplePrompts.map((p) => (
+              <Button key={p} appearance="secondary" size="small" disabled={isGenerating} onClick={() => setPrompt(p)}>
+                {p.length > 28 ? p.slice(0, 28) + '…' : p}
               </Button>
+            ))}
+          </div>
+
+          <div className={styles.row}>
+            <Button appearance="primary" disabled={!prompt.trim() || isGenerating} onClick={() => generateDeck(prompt)}>
+              {isGenerating ? 'Generating…' : deck ? 'Regenerate Deck' : 'Generate Deck'}
+            </Button>
+            <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
+              {isGenerating ? 'Working…' : 'Auto-selects up to 3 stock photos (PEXEL_API required).'}
+            </Caption1>
+          </div>
+
+          {error ? <div className={styles.error}>{error}</div> : null}
+        </div>
+      </Card>
+
+      {!deck ? null : (
+        <div className={styles.shell}>
+          {/* Left: Slides */}
+          <Card className={styles.panel}>
+            <CardHeader header={<Subtitle2>Slides</Subtitle2>} description={<Caption1>Click a slide to edit</Caption1>} />
+            <div className={styles.panelBody}>
+              <div className={styles.slideList}>
+                {deck.slides.map((s) => {
+                  const active = s.id === (selectedSlide?.id ?? '');
+                  const cls = active ? `${styles.slideItem} ${styles.slideItemActive}` : styles.slideItem;
+                  return (
+                    <button key={s.id} type="button" className={cls} onClick={() => setSelectedSlideId(s.id)}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                        <span>
+                          {s.order + 1}. {s.title || '(Untitled)'}
+                        </span>
+                        <span style={{ color: tokens.colorNeutralForeground3 }}>
+                          {s.selectedAssets?.some((a) => a.kind === 'photo') ? '✓' : ''}
+                        </span>
+                      </div>
+                      <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>{s.slideType}</Caption1>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </Card>
 
-          {deck.slides.map((s) => (
-            <Card key={s.id} className={styles.slideCard}>
-              <div className={styles.slideGrid}>
-                <Subtitle2>
-                  {s.order + 1}. {s.title}
-                </Subtitle2>
-                <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
-                  {s.imagePlaceholders?.[0]?.description ?? 'No visual placeholder'}
-                </Caption1>
+          {/* Middle: Slide editor */}
+          <Card className={styles.panel}>
+            <CardHeader
+              header={<Subtitle2>Editor</Subtitle2>}
+              description={<Caption1>{selectedSlide ? `Editing slide ${selectedSlide.order + 1}` : 'Select a slide'}</Caption1>}
+            />
+            <div className={styles.panelBody}>
+              {!selectedSlide ? (
+                <Caption1>Select a slide to edit.</Caption1>
+              ) : (
+                <>
+                  <Field label="Slide title">
+                    <Input value={selectedSlide.title} disabled readOnly />
+                  </Field>
 
-                {/* AI Edit */}
-                <Field label="AI edit this slide" hint="Examples: 'make it shorter', 'turn into a quote', 'rewrite for executives'">
-                  <Input
-                    placeholder="Tell the agent what to change..."
-                    disabled={isGenerating}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const val = (e.target as HTMLInputElement).value;
-                        (e.target as HTMLInputElement).value = '';
-                        aiEditSlide(s.id, val);
-                      }
-                    }}
-                  />
-                </Field>
-
-                <div className={styles.actionsRow}>
-                  <div className={styles.actionsLeft}>
-                    <Button
-                      appearance="secondary"
-                      size="small"
-                      onClick={() => searchPhotosForSlide(s.id, `${deck.title} ${s.title}`)}
+                  <Field label="AI edit this slide" hint="Try: 'make it a quote' or 'make it shorter'">
+                    <Input
+                      placeholder="Instruction…"
                       disabled={isGenerating}
-                    >
-                      Search stock photos
-                    </Button>
-                    {isGenerating ? <Spinner size="tiny" /> : null}
-                  </div>
-                  <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
-                    Selected: {s.selectedAssets?.some((a) => a.kind === 'photo') ? 'Yes' : 'No'}
-                  </Caption1>
-                </div>
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.target as HTMLInputElement).value;
+                          (e.target as HTMLInputElement).value = '';
+                          aiEditSlide(selectedSlide.id, val);
+                        }
+                      }}
+                    />
+                  </Field>
 
-                {photoResultsBySlideId[s.id]?.length ? (
-                  <div className={styles.thumbRow}>
-                    {photoResultsBySlideId[s.id].map((r) => (
-                      <button
-                        key={r.providerId}
-                        type="button"
-                        onClick={() => selectPhotoForSlide(s.id, r)}
-                        style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer' }}
-                        title={r.title}
-                      >
-                        <img className={styles.thumb} src={r.previewUrl ?? r.downloadUrl} alt={r.altText} />
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </Card>
-          ))}
+                  <Card className={styles.panel}>
+                    <CardHeader
+                      header={<Subtitle2>Stock photo</Subtitle2>}
+                      description={
+                        <Caption1>
+                          Selected: {selectedSlide.selectedAssets?.some((a) => a.kind === 'photo') ? 'Yes' : 'No'}
+                        </Caption1>
+                      }
+                    />
+                    <div className={styles.panelBody}>
+                      <div className={styles.row}>
+                        <Button
+                          appearance="secondary"
+                          size="small"
+                          disabled={isGenerating}
+                          onClick={() => searchPhotosForSlide(selectedSlide.id, `${deck.title} ${selectedSlide.title}`)}
+                        >
+                          Search stock photos
+                        </Button>
+                      </div>
 
-          {error ? <div className={styles.error}>{error}</div> : null}
-        </div> 
-      ) : tab === 'theme' ? (
-        <Card className={styles.contentCard}>
-          <CardHeader
-            header={<Subtitle2>Theme</Subtitle2>}
-            description={<Caption1>Adjust colors and fonts for the deck.</Caption1>}
-          />
-          <div className={styles.cardBody}>
-            <Field label="Primary color (HSL triplet)" hint='Example: "220 70% 50%"'>
-              <Input
-                value={deck.theme.primaryColor}
-                onChange={(_, data) => updateTheme({ primaryColor: data.value })}
-              />
-            </Field>
-            <Field label="Accent color (HSL triplet)">
-              <Input value={deck.theme.accentColor} onChange={(_, data) => updateTheme({ accentColor: data.value })} />
-            </Field>
-            <Field label="Background color (HSL triplet)">
-              <Input
-                value={deck.theme.backgroundColor}
-                onChange={(_, data) => updateTheme({ backgroundColor: data.value })}
-              />
-            </Field>
-            <Field label="Heading font">
-              <Input value={deck.theme.fontHeading} onChange={(_, data) => updateTheme({ fontHeading: data.value })} />
-            </Field>
-            <Field label="Body font">
-              <Input value={deck.theme.fontBody} onChange={(_, data) => updateTheme({ fontBody: data.value })} />
-            </Field>
-          </div>
-        </Card>
-      ) : tab === 'export' ? (
-        <Card className={styles.contentCard}>
-          <CardHeader
-            header={<Subtitle2>Export</Subtitle2>}
-            description={<Caption1>Download the full deck JSON (includes selected assets + attributions).</Caption1>}
-          />
-          <div className={styles.cardBody}>
-            <Button
-              appearance="primary"
-              onClick={() => {
-                const blob = new Blob([JSON.stringify(deck, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${deck.title.replace(/[^a-z0-9]/gi, '_')}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
-              Download deck JSON
-            </Button>
-
-            <div style={{ marginTop: 12 }}>
-              <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Attribution (selected photos)</Caption1>
-              <ul>
-                {deck.slides
-                  .flatMap((s) => s.selectedAssets ?? [])
-                  .filter((a) => a.kind === 'photo')
-                  .map((a, i) => (
-                    <li key={i}>{a.attribution ?? a.sourceUrl ?? 'Photo'}</li>
-                  ))}
-              </ul>
+                      {photoResultsBySlideId[selectedSlide.id]?.length ? (
+                        <div className={styles.thumbRow}>
+                          {photoResultsBySlideId[selectedSlide.id].map((r) => (
+                            <button
+                              key={r.providerId}
+                              type="button"
+                              onClick={() => selectPhotoForSlide(selectedSlide.id, r)}
+                              style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                              title={r.title}
+                            >
+                              <img className={styles.thumb} src={r.previewUrl ?? r.downloadUrl} alt={r.altText} />
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </Card>
+                </>
+              )}
             </div>
-          </div>
-        </Card>
-      ) : null} 
-    </div> 
-  ); 
+          </Card>
+
+          {/* Right: Style + theme + export */}
+          <Card className={styles.panel}>
+            <CardHeader header={<Subtitle2>Design</Subtitle2>} description={<Caption1>Style presets + theme</Caption1>} />
+            <div className={styles.panelBody}>
+              <Card className={styles.panel}>
+                <CardHeader header={<Subtitle2>Style gallery</Subtitle2>} description={<Caption1>Pick a generated style preset</Caption1>} />
+                <div className={styles.panelBody}>
+                  <div className={styles.styleGrid}>
+                    {(stylePresets ?? []).map((p: any) => {
+                      const isActive = p.id === selectedStyleId;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={styles.styleCardBtn}
+                          onClick={() => applyStylePreset(p.id)}
+                          style={{ border: isActive ? `2px solid ${tokens.colorBrandStroke1}` : undefined }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                            <strong>{p.name}</strong>
+                            {isActive ? <span>✓</span> : null}
+                          </div>
+                          <div className={styles.swatches}>
+                            <span className={styles.swatch} style={{ background: `hsl(${p.theme.primaryColor})` }} />
+                            <span className={styles.swatch} style={{ background: `hsl(${p.theme.accentColor})` }} />
+                            <span className={styles.swatch} style={{ background: `hsl(${p.theme.backgroundColor})` }} />
+                          </div>
+                          <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>{p.decoration?.backgroundStyle ?? ''}</Caption1>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Card>
+
+              <Card className={styles.panel}>
+                <CardHeader header={<Subtitle2>Theme tokens</Subtitle2>} description={<Caption1>Edit deck theme directly</Caption1>} />
+                <div className={styles.panelBody}>
+                  <Field label="Primary (HSL triplet)">
+                    <Input value={deck.theme.primaryColor} onChange={(_, d) => updateTheme({ primaryColor: d.value })} />
+                  </Field>
+                  <Field label="Accent (HSL triplet)">
+                    <Input value={deck.theme.accentColor} onChange={(_, d) => updateTheme({ accentColor: d.value })} />
+                  </Field>
+                  <Field label="Background (HSL triplet)">
+                    <Input value={deck.theme.backgroundColor} onChange={(_, d) => updateTheme({ backgroundColor: d.value })} />
+                  </Field>
+                  <Field label="Heading font">
+                    <Input value={deck.theme.fontHeading} onChange={(_, d) => updateTheme({ fontHeading: d.value })} />
+                  </Field>
+                  <Field label="Body font">
+                    <Input value={deck.theme.fontBody} onChange={(_, d) => updateTheme({ fontBody: d.value })} />
+                  </Field>
+                </div>
+              </Card>
+
+              <Card className={styles.panel}>
+                <CardHeader header={<Subtitle2>Export</Subtitle2>} description={<Caption1>Download deck JSON</Caption1>} />
+                <div className={styles.panelBody}>
+                  <Button
+                    appearance="primary"
+                    onClick={() => {
+                      const blob = new Blob([JSON.stringify(deck, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${deck.title.replace(/[^a-z0-9]/gi, '_')}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    Download deck JSON
+                  </Button>
+
+                  <div>
+                    <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Attribution (selected photos)</Caption1>
+                    <ul>
+                      {deck.slides
+                        .flatMap((s) => s.selectedAssets ?? [])
+                        .filter((a) => a.kind === 'photo')
+                        .map((a, i) => (
+                          <li key={i}>{a.attribution ?? a.sourceUrl ?? 'Photo'}</li>
+                        ))}
+                    </ul>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
 }
