@@ -34,5 +34,6 @@ Always run `enforceThemeStyle(outline)` after applying theme output.
 - Do not rewrite slide content.
 
 ## References
+- Read `references/system-capabilities.md` for what the system can actually control today.
 - Read `references/theme-schema.md` for the exact schema + constraints.
 - Read `references/api-contract.md` for endpoint payloads and expected response shapes.

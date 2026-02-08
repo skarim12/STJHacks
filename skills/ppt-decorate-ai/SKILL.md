@@ -40,5 +40,6 @@ Only slides whose chosen layout includes an image slot:
 - `enrichment` must be used as diagnostics (attempted/skipped/provider errors).
 
 ## References
+- Read `references/system-capabilities.md` for what the system can actually do (layouts/images/style/PPTX parity).
 - Read `references/decorate-contract.md` for pipeline + invariants.
 - Read `references/image-policy.md` for external image rules and rate-limit handling.
