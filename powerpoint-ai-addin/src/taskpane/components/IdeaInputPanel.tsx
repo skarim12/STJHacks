@@ -141,6 +141,9 @@ export function IdeaInputPanel() {
     updateTheme,
     insertCurrentDeck,
     downloadPptx,
+    uploadPptxForViewing,
+    uploadedPptxViewerUrl,
+    uploadedPptxWarnings,
     aiEditSlide,
     searchPhotosForSlide,
     selectPhotoForSlide,
@@ -440,7 +443,7 @@ export function IdeaInputPanel() {
               </Card>
 
               <Card className={styles.panel}>
-                <CardHeader header={<Subtitle2>Export</Subtitle2>} description={<Caption1>Download deck JSON</Caption1>} />
+                <CardHeader header={<Subtitle2>Export</Subtitle2>} description={<Caption1>Download deck JSON / PPTX</Caption1>} />
                 <div className={styles.panelBody}>
                   <div className={styles.row}>
                     <Button
@@ -469,6 +472,46 @@ export function IdeaInputPanel() {
                   <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
                     “Insert into PowerPoint” works when running inside the Office add-in. “Download PPTX” works in the web demo.
                   </Caption1>
+
+                  <Card className={styles.panel}>
+                    <CardHeader header={<Subtitle2>Upload PPTX to view</Subtitle2>} description={<Caption1>Best effort: converts to PDF if LibreOffice is installed.</Caption1>} />
+                    <div className={styles.panelBody}>
+                      <input
+                        type="file"
+                        accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        disabled={isGenerating}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadPptxForViewing(f);
+                        }}
+                      />
+
+                      {uploadedPptxWarnings?.length ? (
+                        <div style={{ color: tokens.colorNeutralForeground2 }}>
+                          <Caption1>Notes:</Caption1>
+                          <ul>
+                            {uploadedPptxWarnings.map((w, i) => (
+                              <li key={i}>{w}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      {uploadedPptxViewerUrl ? (
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <a href={uploadedPptxViewerUrl} target="_blank" rel="noreferrer">
+                            Open uploaded file
+                          </a>
+                          {/* If this is a PDF, it will render inline in most browsers */}
+                          <iframe
+                            title="pptx-viewer"
+                            src={uploadedPptxViewerUrl}
+                            style={{ width: '100%', height: 320, borderRadius: 12, border: `1px solid ${tokens.colorNeutralStroke2}` }}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  </Card>
 
                   <div>
                     <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Attribution (selected photos)</Caption1>

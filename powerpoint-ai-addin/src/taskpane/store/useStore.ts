@@ -57,6 +57,9 @@ type Store = {
 
   insertCurrentDeck: () => Promise<void>;
   downloadPptx: () => Promise<void>;
+  uploadPptxForViewing: (file: File) => Promise<void>;
+  uploadedPptxViewerUrl?: string | null;
+  uploadedPptxWarnings?: string[] | null;
 };
 
 export const useStore = create<Store>((set, get) => ({
@@ -368,6 +371,29 @@ export const useStore = create<Store>((set, get) => ({
       a.click();
       URL.revokeObjectURL(url);
       set({ status: 'done' });
+    } catch (e: any) {
+      set({ status: 'error', error: e?.message ?? String(e) });
+    }
+  },
+
+  uploadedPptxViewerUrl: null,
+  uploadedPptxWarnings: null,
+
+  uploadPptxForViewing: async (file: File) => {
+    set({ status: 'generating', error: null, uploadedPptxViewerUrl: null, uploadedPptxWarnings: null });
+    try {
+      const resp = await get().deckApi.uploadPptx(file);
+      if (!resp?.success) throw new Error(resp?.error ?? 'Upload failed');
+
+      const pdfUrl = resp.pdfUrl as string | null;
+      const pptxUrl = resp.pptxUrl as string | null;
+      const viewerUrl = pdfUrl || pptxUrl;
+
+      set({
+        status: 'done',
+        uploadedPptxViewerUrl: viewerUrl,
+        uploadedPptxWarnings: (resp.warnings ?? null) as any
+      });
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });
     }

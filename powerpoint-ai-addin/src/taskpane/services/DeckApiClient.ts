@@ -76,5 +76,15 @@ export class DeckApiClient {
     }
     return await r.blob();
   }
+
+  async uploadPptx(file: File): Promise<any> {
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch(`${this.cfg.baseUrl}/api/upload/pptx`, {
+      method: 'POST',
+      body: fd
+    });
+    return await r.json();
+  }
 }
 
