@@ -216,9 +216,10 @@ deckExtrasRouter.post('/:deckId/repair', async (req, res) => {
         const { LayoutPlanAgent } = await import('../agents/layoutPlanAgent.js');
         const out = await LayoutPlanAgent.run(working);
         warnings.push(...(out.warnings ?? []));
+        const { sanitizeLayoutPlan } = await import('../services/layoutSanitize.js');
         for (const s of working.slides) {
           const p = out.bySlideId?.[s.id];
-          if (p) (s as any).layoutPlan = p;
+          if (p) (s as any).layoutPlan = sanitizeLayoutPlan(p as any);
         }
       }
     }

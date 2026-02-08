@@ -14,6 +14,7 @@ import { extractFirstJsonObject, generateStylePresetLLM } from './llm.js';
 import type { Reporter } from './reporter.js';
 import { safeReporter } from './reporter.js';
 import { runDeckQa } from './deckQa.js';
+import { sanitizeLayoutPlan } from './layoutSanitize.js';
 
 const DEFAULT_THEME: ThemeTokens = {
   primaryColor: '220 70% 50%',
@@ -326,7 +327,7 @@ export const generateDeckWithAgents = async (
     if (layoutWarnings?.length) rep.warning('layout', 'LayoutPlanAgent warnings', { warnings: layoutWarnings });
     for (const s of deck.slides) {
       const p = bySlideId[s.id];
-      if (p) (s as any).layoutPlan = p;
+      if (p) (s as any).layoutPlan = sanitizeLayoutPlan(p as any);
     }
     rep.artifact('layout', 'layoutPlanSummary', {
       slides: deck.slides.map((s) => ({ slideId: s.id, boxes: (s as any).layoutPlan?.boxes?.length ?? 0 }))
