@@ -347,7 +347,8 @@ async function finalizeOutlineForRender(reqBody: any) {
     allowGeneratedImages,
     imageStyle,
     maxDeckImages: 10,
-    concurrency: 2,
+    // Wikimedia APIs will rate-limit; keep this conservative.
+    concurrency: allowExternalImages ? 1 : 2,
   });
 
   // Always-on: choose a grid-based layout variant for each slide.
@@ -408,7 +409,8 @@ router.post("/export-pdf", async (req, res) => {
       allowGeneratedImages,
       imageStyle,
       maxDeckImages: 10,
-      concurrency: 2,
+      // Wikimedia APIs will rate-limit; keep this conservative.
+      concurrency: allowExternalImages ? 1 : 2,
     });
 
     // Always-on: ask AI to choose a grid-based layout variant for each slide.
@@ -462,7 +464,8 @@ router.post("/export-pptx", async (req, res) => {
       allowGeneratedImages,
       imageStyle,
       maxDeckImages: 10,
-      concurrency: 2,
+      // Wikimedia APIs will rate-limit; keep this conservative.
+      concurrency: allowExternalImages ? 1 : 2,
     });
     await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
 
@@ -646,7 +649,8 @@ router.post("/slide-html", async (req, res) => {
       allowGeneratedImages,
       imageStyle,
       maxDeckImages: 10,
-      concurrency: 2,
+      // Wikimedia APIs will rate-limit; keep this conservative.
+      concurrency: allowExternalImages ? 1 : 2,
     });
     await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
     if (useAi) await enrichOutlineWithStyles(outline, { anthropicJsonRequest });

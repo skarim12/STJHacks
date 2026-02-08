@@ -37,6 +37,43 @@ function isWhitelisted(url: string): boolean {
   }
 }
 
+async function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function axiosGetWithRetry<T>(
+  url: string,
+  opts: any,
+  meta: { label: string; retries?: number } = { label: "get" }
+): Promise<T> {
+  const retries = meta.retries ?? 2;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const resp = await axios.get(url, opts);
+      return resp as any as T;
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const is429 = status === 429;
+      const retryAfterRaw = e?.response?.headers?.["retry-after"];
+      const retryAfterSec = Number(retryAfterRaw);
+      const waitMs = Number.isFinite(retryAfterSec)
+        ? Math.max(0, retryAfterSec) * 1000
+        : 800 * Math.pow(2, attempt);
+
+      if (attempt < retries && is429) {
+        // Back off and retry.
+        await sleep(Math.min(waitMs, 8000));
+        continue;
+      }
+      throw e;
+    }
+  }
+
+  // unreachable
+  throw new Error(`${meta.label}: retry loop exhausted`);
+}
+
 async function wikimediaSearchFirstImage(query: string, thumbWidth: number): Promise<{
   imageUrl?: string;
   thumbUrl?: string;
@@ -49,29 +86,33 @@ async function wikimediaSearchFirstImage(query: string, thumbWidth: number): Pro
 
   // Wikimedia Commons search
   // https://www.mediawiki.org/wiki/API:Search
-  const searchResp = await axios.get("https://commons.wikimedia.org/w/api.php", {
-    params: {
-      action: "query",
-      format: "json",
-      origin: "*",
-      generator: "search",
-      gsrsearch: query,
-      gsrlimit: 1,
-      gsrnamespace: 6, // File:
-      prop: "imageinfo|info",
-      // request a predictable thumbnail URL as well
-      iiprop: "url|mime|size",
-      iiurlwidth: thumbWidth,
-      inprop: "url",
+  const searchResp = await axiosGetWithRetry<any>(
+    "https://commons.wikimedia.org/w/api.php",
+    {
+      params: {
+        action: "query",
+        format: "json",
+        origin: "*",
+        generator: "search",
+        gsrsearch: query,
+        gsrlimit: 1,
+        gsrnamespace: 6, // File:
+        prop: "imageinfo|info",
+        // request a predictable thumbnail URL as well
+        iiprop: "url|mime|size",
+        iiurlwidth: thumbWidth,
+        inprop: "url",
+      },
+      timeout: 6000,
+      headers: {
+        // Wikimedia APIs increasingly require a descriptive User-Agent.
+        // https://meta.wikimedia.org/wiki/User-Agent_policy
+        "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
+        Accept: "application/json",
+      },
     },
-    timeout: 6000,
-    headers: {
-      // Wikimedia APIs increasingly require a descriptive User-Agent.
-      // https://meta.wikimedia.org/wiki/User-Agent_policy
-      "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
-      Accept: "application/json",
-    },
-  });
+    { label: "commons search", retries: 2 }
+  );
 
   const pages = (searchResp.data as any)?.query?.pages;
   if (!pages) {
@@ -119,17 +160,21 @@ async function downloadAndCompressAsDataUri(
   const cached = cache.get(cacheKey);
   if (cached) return cached as any;
 
-  const resp = await axios.get(url, {
-    responseType: "arraybuffer",
-    timeout: 10000,
-    // allow fetching a bit larger, then compress down
-    maxContentLength: Math.max(maxBytes * 4, 2_000_000),
-    maxBodyLength: Math.max(maxBytes * 4, 2_000_000),
-    headers: {
-      // User-Agent required by Wikimedia policy.
-      "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
+  const resp = await axiosGetWithRetry<any>(
+    url,
+    {
+      responseType: "arraybuffer",
+      timeout: 10000,
+      // allow fetching a bit larger, then compress down
+      maxContentLength: Math.max(maxBytes * 4, 2_000_000),
+      maxBodyLength: Math.max(maxBytes * 4, 2_000_000),
+      headers: {
+        // User-Agent required by Wikimedia policy.
+        "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
+      },
     },
-  });
+    { label: "image download", retries: 2 }
+  );
 
   const inputBuf = Buffer.from(resp.data);
   const contentType = String(resp.headers?.["content-type"] || "");
@@ -181,21 +226,25 @@ async function wikipediaSearchTopPage(query: string): Promise<{ pageId: number; 
   const cached = cache.get(cacheKey);
   if (cached) return cached as any;
 
-  const resp = await axios.get("https://en.wikipedia.org/w/api.php", {
-    params: {
-      action: "query",
-      format: "json",
-      origin: "*",
-      list: "search",
-      srsearch: query,
-      srlimit: 1,
+  const resp = await axiosGetWithRetry<any>(
+    "https://en.wikipedia.org/w/api.php",
+    {
+      params: {
+        action: "query",
+        format: "json",
+        origin: "*",
+        list: "search",
+        srsearch: query,
+        srlimit: 1,
+      },
+      timeout: 6000,
+      headers: {
+        "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
+        Accept: "application/json",
+      },
     },
-    timeout: 6000,
-    headers: {
-      "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
-      Accept: "application/json",
-    },
-  });
+    { label: "wikipedia search", retries: 2 }
+  );
 
   const results = (resp.data as any)?.query?.search;
   const first = Array.isArray(results) && results.length ? results[0] : null;
@@ -220,23 +269,27 @@ async function wikipediaGetLeadImage(opts: {
   const cached = cache.get(cacheKey);
   if (cached) return cached as any;
 
-  const resp = await axios.get("https://en.wikipedia.org/w/api.php", {
-    params: {
-      action: "query",
-      format: "json",
-      origin: "*",
-      pageids: opts.pageId,
-      prop: "pageimages|info",
-      piprop: "thumbnail",
-      pithumbsize: opts.thumbWidth,
-      inprop: "url",
+  const resp = await axiosGetWithRetry<any>(
+    "https://en.wikipedia.org/w/api.php",
+    {
+      params: {
+        action: "query",
+        format: "json",
+        origin: "*",
+        pageids: opts.pageId,
+        prop: "pageimages|info",
+        piprop: "thumbnail",
+        pithumbsize: opts.thumbWidth,
+        inprop: "url",
+      },
+      timeout: 6000,
+      headers: {
+        "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
+        Accept: "application/json",
+      },
     },
-    timeout: 6000,
-    headers: {
-      "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
-      Accept: "application/json",
-    },
-  });
+    { label: "wikipedia lead image", retries: 2 }
+  );
 
   const pages = (resp.data as any)?.query?.pages;
   const p = pages ? pages[String(opts.pageId)] : null;

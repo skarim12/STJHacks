@@ -86,7 +86,7 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
         continue;
       }
 
-      let lastError: string | undefined;
+      const errors: string[] = [];
 
       // 1) Wikimedia Commons file search
       if (allowExternalImages) {
@@ -101,9 +101,9 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             report.perSlide.push({ index: i, slideType, query, source: "wikimedia" });
             continue;
           }
-          lastError = lastError || "wikimedia: no result";
+          errors.push("wikimedia: no result");
         } catch (e: any) {
-          lastError = `wikimedia: ${String(e?.message || e)}`;
+          errors.push(`wikimedia: ${String(e?.message || e)}`);
         }
 
         // 1b) Wikipedia page → lead image (much higher recall for abstract concepts)
@@ -118,9 +118,9 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             report.perSlide.push({ index: i, slideType, query, source: "wikipedia" });
             continue;
           }
-          lastError = lastError || "wikipedia: no result";
+          errors.push("wikipedia: no result");
         } catch (e: any) {
-          lastError = lastError || `wikipedia: ${String(e?.message || e)}`;
+          errors.push(`wikipedia: ${String(e?.message || e)}`);
         }
       }
 
@@ -137,19 +137,20 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             report.perSlide.push({ index: i, slideType, query, source: "openai" });
             continue;
           }
-          lastError = lastError || "openai: no result";
+          errors.push("openai: no result");
         } catch (e: any) {
-          lastError = lastError || `openai: ${String(e?.message || e)}`;
+          errors.push(`openai: ${String(e?.message || e)}`);
         }
       }
 
       const finalError =
-        lastError ||
-        (!allowExternalImages && !allowGeneratedImages
-          ? "images disabled"
-          : allowExternalImages && !allowGeneratedImages
-            ? "no image found (enable AI-generated fallback)"
-            : "no image found");
+        errors.length > 0
+          ? errors.slice(0, 3).join(" | ")
+          : !allowExternalImages && !allowGeneratedImages
+            ? "images disabled"
+            : allowExternalImages && !allowGeneratedImages
+              ? "no image found (enable AI-generated fallback)"
+              : "no image found";
 
       report.perSlide.push({ index: i, slideType, query, source: "none", error: finalError });
     }
