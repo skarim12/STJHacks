@@ -339,8 +339,36 @@ export const generateDeckWithAgents = async (
 
   // 6) QA gate
   rep.stageStart('qa');
-  const qa = runDeckQa(deck);
+  let qa = runDeckQa(deck);
   rep.artifact('qa', 'report', qa);
+
+  // If QA fails (layout issues are common), auto-repair by applying deterministic template layouts
+  // to failing slides. This improves "works first time" without additional AI calls.
+  if (!qa.pass || qa.issues?.some((i: any) => i.level === 'fail')) {
+    try {
+      const { buildFallbackLayoutPlan } = await import('./layoutTemplates.js');
+      const failingSlideIds = new Set(
+        (qa.issues ?? []).filter((i: any) => i.level === 'fail' && i.slideId).map((i: any) => String(i.slideId))
+      );
+
+      if (failingSlideIds.size) {
+        for (const s of deck.slides) {
+          if (!failingSlideIds.has(String(s.id))) continue;
+          (s as any).layoutPlan = buildFallbackLayoutPlan({ deck, slide: s as any });
+        }
+        warnings.push(`Auto-repair: applied fallback layout templates for ${failingSlideIds.size} failing slide(s).`);
+        rep.warning('qa', 'Auto-repair applied fallback layout templates', { count: failingSlideIds.size });
+
+        // Re-run QA after repair
+        qa = runDeckQa(deck);
+        rep.artifact('qa', 'report_after_repair', qa);
+      }
+    } catch (e: any) {
+      warnings.push(`Auto-repair (fallback layout) failed: ${e?.message ?? String(e)}`);
+      rep.warning('qa', 'Auto-repair failed', { error: e?.message ?? String(e) });
+    }
+  }
+
   rep.stageEnd('qa');
 
   // Validate final deck contract AFTER applying style/decoration/layoutPlan

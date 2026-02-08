@@ -1,27 +1,4 @@
-import type { DeckSchema, Slide } from '../types/deck.js';
-
-export type SlideLayoutPlan = {
-  version: '1.0';
-  slideW: number;
-  slideH: number;
-  boxes: Array<{
-    id: string;
-    kind: 'title' | 'subtitle' | 'bullets' | 'body' | 'image' | 'shape';
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    fontFace?: string;
-    fontSize?: number;
-    color?: string;
-    fill?: string;
-    line?: string;
-    bold?: boolean;
-    align?: 'left' | 'center' | 'right';
-    valign?: 'top' | 'middle' | 'bottom';
-    radius?: number;
-  }>;
-};
+import type { DeckSchema, Slide, SlideLayoutPlan } from '../types/deck.js';
 
 const SLIDE_W = 13.333;
 const SLIDE_H = 7.5;
@@ -49,7 +26,16 @@ export function buildFallbackLayoutPlan(opts: { deck: DeckSchema; slide: Slide }
 
   const boxes: SlideLayoutPlan['boxes'] = [];
 
+  const autoFont = (text: string, w: number, h: number, base: number, min: number) => {
+    const area = Math.max(0.1, w * h);
+    const density = (text?.length ?? 0) / area;
+    const shrink = density > 220 ? 0.6 : density > 160 ? 0.72 : density > 120 ? 0.85 : 1;
+    return Math.max(min, Math.round(base * shrink));
+  };
+
   const addTitle = (y: number, h: number, fontSize = 34) => {
+    const txt = slide.title || '';
+    const fs = autoFont(txt, SLIDE_W - marginX * 2, h, fontSize, 28);
     boxes.push({
       id: 'title',
       kind: 'title',
@@ -58,7 +44,7 @@ export function buildFallbackLayoutPlan(opts: { deck: DeckSchema; slide: Slide }
       w: SLIDE_W - marginX * 2,
       h,
       fontFace: heading,
-      fontSize,
+      fontSize: fs,
       bold: true,
       color: titleColor,
       align: 'left',
@@ -67,6 +53,8 @@ export function buildFallbackLayoutPlan(opts: { deck: DeckSchema; slide: Slide }
   };
 
   const addBullets = (x: number, y: number, w: number, h: number) => {
+    const txt = (slide.bullets ?? []).map((t) => `• ${t}`).join('\n');
+    const fs = autoFont(txt, w, h, 18, 14);
     boxes.push({
       id: 'bullets',
       kind: 'bullets',
@@ -75,7 +63,7 @@ export function buildFallbackLayoutPlan(opts: { deck: DeckSchema; slide: Slide }
       w,
       h,
       fontFace: body,
-      fontSize: 18,
+      fontSize: fs,
       color: bodyColor,
       align: 'left',
       valign: 'top'
@@ -83,6 +71,8 @@ export function buildFallbackLayoutPlan(opts: { deck: DeckSchema; slide: Slide }
   };
 
   const addBody = (x: number, y: number, w: number, h: number) => {
+    const txt = slide.bodyText || '';
+    const fs = autoFont(txt, w, h, 18, 14);
     boxes.push({
       id: 'body',
       kind: 'body',
@@ -91,7 +81,7 @@ export function buildFallbackLayoutPlan(opts: { deck: DeckSchema; slide: Slide }
       w,
       h,
       fontFace: body,
-      fontSize: 18,
+      fontSize: fs,
       color: bodyColor,
       align: 'left',
       valign: 'top'
@@ -120,15 +110,16 @@ export function buildFallbackLayoutPlan(opts: { deck: DeckSchema; slide: Slide }
   if (slide.slideType === 'title') {
     // Big title + optional subtitle + hero image (if exists)
     addTitle(2.2, 1.2, 44);
+    const subtitleTxt = slide.subtitle || '';
     boxes.push({
       id: 'subtitle',
       kind: 'subtitle',
       x: marginX,
       y: 3.5,
       w: SLIDE_W - marginX * 2,
-      h: 0.8,
+      h: 0.85,
       fontFace: body,
-      fontSize: 20,
+      fontSize: autoFont(subtitleTxt, SLIDE_W - marginX * 2, 0.85, 20, 16),
       color: bodyColor,
       align: 'left',
       valign: 'top'
@@ -142,9 +133,74 @@ export function buildFallbackLayoutPlan(opts: { deck: DeckSchema; slide: Slide }
   }
 
   if (slide.slideType === 'section') {
-    addTitle(2.8, 1.1, 44);
     // subtle card behind title region
     addCard(marginX - 0.2, 2.6, SLIDE_W - (marginX - 0.2) * 2, 1.7);
+    addTitle(2.8, 1.1, 44);
+    return { version: '1.0', slideW: SLIDE_W, slideH: SLIDE_H, boxes };
+  }
+
+  if (slide.slideType === 'quote') {
+    addTitle(marginY, 0.8, 32);
+
+    const qText = slide.quote?.text || slide.bodyText || (slide.bullets ?? []).join(' ') || '';
+    const qBoxX = marginX;
+    const qBoxY = 1.6;
+    const qBoxW = SLIDE_W - marginX * 2;
+    const qBoxH = 4.2;
+
+    addCard(qBoxX - 0.2, qBoxY - 0.2, qBoxW + 0.4, qBoxH + 0.4);
+    boxes.push({
+      id: 'body',
+      kind: 'body',
+      x: qBoxX,
+      y: qBoxY,
+      w: qBoxW,
+      h: qBoxH,
+      fontFace: body,
+      fontSize: autoFont(qText, qBoxW, qBoxH, 26, 18),
+      color: bodyColor,
+      align: 'left',
+      valign: 'top'
+    });
+
+    const attribution = slide.quote?.attribution || '';
+    if (attribution) {
+      boxes.push({
+        id: 'subtitle',
+        kind: 'subtitle',
+        x: qBoxX,
+        y: qBoxY + qBoxH + 0.35,
+        w: qBoxW,
+        h: 0.6,
+        fontFace: body,
+        fontSize: 16,
+        color: bodyColor,
+        align: 'right',
+        valign: 'top'
+      });
+    }
+
+    return { version: '1.0', slideW: SLIDE_W, slideH: SLIDE_H, boxes };
+  }
+
+  if (slide.slideType === 'twoColumn' || slide.slideType === 'comparison') {
+    const titleH = 0.8;
+    addTitle(marginY, titleH, 32);
+
+    const bodyTop = marginY + titleH + 0.35;
+    const bodyH = SLIDE_H - bodyTop - marginY;
+
+    const colW = (SLIDE_W - marginX * 2 - gap) / 2;
+    const leftX = marginX;
+    const rightX = marginX + colW + gap;
+
+    addCard(leftX - 0.15, bodyTop - 0.1, colW + 0.3, bodyH + 0.2);
+    addCard(rightX - 0.15, bodyTop - 0.1, colW + 0.3, bodyH + 0.2);
+
+    // Use bullets kind for both columns; text renderer will choose from slide fields.
+    boxes.push({ id: 'left', kind: 'bullets', x: leftX, y: bodyTop, w: colW, h: bodyH, fontFace: body, fontSize: 16, color: bodyColor });
+    boxes.push({ id: 'right', kind: 'bullets', x: rightX, y: bodyTop, w: colW, h: bodyH, fontFace: body, fontSize: 16, color: bodyColor });
+
     return { version: '1.0', slideW: SLIDE_W, slideH: SLIDE_H, boxes };
   }
 
