@@ -85,3 +85,67 @@ deckExtrasRouter.post('/:deckId/improve', async (req, res) => {
   const report = runDeckQa(working);
   return res.json({ success: true, deckId, report, warnings });
 });
+
+// POST /api/deck/:deckId/repair
+// Deterministic repairs driven by QA heuristics (no additional AI calls required).
+// Goal: "works first time" by clamping common failure modes (too many bullets, missing notes, missing layoutPlan).
+// Best-effort; always returns success with warnings unless deck missing.
+deckExtrasRouter.post('/:deckId/repair', async (req, res) => {
+  const deckId = String(req.params.deckId);
+  const deck = DeckStore.get(deckId);
+  if (!deck) return res.status(404).json({ success: false, error: 'Deck not found' });
+
+  const warnings: string[] = [];
+  let working: any = { ...deck };
+
+  // 1) Clamp content density (deterministic)
+  const MAX_BULLETS = 6;
+  const MAX_BODY_CHARS = 700;
+  working.slides = (working.slides ?? []).map((s: any) => {
+    const out = { ...s };
+    if (Array.isArray(out.bullets) && out.bullets.length > MAX_BULLETS) {
+      out.bullets = out.bullets.slice(0, MAX_BULLETS);
+      warnings.push(`Repair: trimmed bullets to ${MAX_BULLETS} for slide "${String(out.title || '').slice(0, 60)}"`);
+    }
+    if (typeof out.bodyText === 'string' && out.bodyText.length > MAX_BODY_CHARS) {
+      out.bodyText = out.bodyText.slice(0, MAX_BODY_CHARS).trim() + '…';
+      warnings.push(`Repair: trimmed bodyText to ${MAX_BODY_CHARS} chars for slide "${String(out.title || '').slice(0, 60)}"`);
+    }
+    return out;
+  });
+
+  // 2) Ensure speaker notes exist (best-effort; uses existing agent)
+  try {
+    const missing = (working.slides ?? []).some((s: any) => !String(s.speakerNotes ?? '').trim());
+    if (missing) {
+      const { SpeakerNotesAgent } = await import('../agents/speakerNotesAgent.js');
+      const out = await SpeakerNotesAgent.run(working);
+      warnings.push(...(out.warnings ?? []));
+      working.slides = working.slides.map((s: any) => ({ ...s, speakerNotes: out.bySlideId[s.id] ?? s.speakerNotes }));
+    }
+  } catch (e: any) {
+    warnings.push(`Repair: speaker notes step failed: ${e?.message ?? String(e)}`);
+  }
+
+  // 3) Ensure layoutPlan exists (best-effort)
+  try {
+    const needsLayout = (working.slides ?? []).some((s: any) => !(s as any).layoutPlan?.boxes?.length);
+    if (needsLayout) {
+      const { LayoutPlanAgent } = await import('../agents/layoutPlanAgent.js');
+      const out = await LayoutPlanAgent.run(working);
+      warnings.push(...(out.warnings ?? []));
+      for (const s of working.slides) {
+        const p = out.bySlideId?.[s.id];
+        if (p) (s as any).layoutPlan = p;
+      }
+    }
+  } catch (e: any) {
+    warnings.push(`Repair: layout plan step failed: ${e?.message ?? String(e)}`);
+  }
+
+  working.metadata = { ...(working.metadata ?? {}), updatedAt: new Date().toISOString() };
+  DeckStore.set(working);
+
+  const report = runDeckQa(working);
+  return res.json({ success: true, deckId, report, warnings });
+});

@@ -165,6 +165,11 @@ export class DeckApiClient {
     return await r.json();
   }
 
+  async repairDeck(deckId: string): Promise<any> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/deck/${encodeURIComponent(deckId)}/repair`, { method: 'POST' });
+    return await r.json();
+  }
+
   async generateSpeakerNotesForDeck(deckId: string): Promise<any> {
     const r = await fetch(`${this.cfg.baseUrl}/api/deck/${encodeURIComponent(deckId)}/speaker-notes/generate`, {
       method: 'POST'

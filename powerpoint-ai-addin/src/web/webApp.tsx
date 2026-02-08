@@ -38,6 +38,9 @@ export function WebApp() {
   const [qaReport, setQaReport] = useState<any | null>(null);
   const [qaBusy, setQaBusy] = useState(false);
   const [improveBusy, setImproveBusy] = useState(false);
+  const [repairBusy, setRepairBusy] = useState(false);
+
+  const [selectedSlideId, setSelectedSlideId] = useState<string | null>(null);
 
   const pushEvent = (evt: StreamEvt) => {
     setEvents((e) => [...e.slice(-200), evt]);
@@ -85,7 +88,10 @@ export function WebApp() {
       const finalId = lastDoneDeckIdRef.current;
       if (finalId) {
         const r = await api.getDeck(finalId);
-        if (r?.deck) setDeck(r.deck);
+        if (r?.deck) {
+          setDeck(r.deck);
+          setSelectedSlideId(r.deck?.slides?.[0]?.id ?? null);
+        }
         try {
           const q = await api.runQa(finalId);
           if (q?.report) setQaReport(q.report);
@@ -140,6 +146,22 @@ export function WebApp() {
       setWarnings((w) => [...w, e?.message ?? String(e)]);
     } finally {
       setImproveBusy(false);
+    }
+  };
+
+  const onRepair = async () => {
+    if (!deckId) return;
+    setRepairBusy(true);
+    try {
+      const r = await api.repairDeck(deckId);
+      if (r?.warnings?.length) setWarnings((w) => [...w, ...r.warnings.map((x: any) => String(x))]);
+      if (r?.report) setQaReport(r.report);
+      const d = await api.getDeck(deckId);
+      if (d?.deck) setDeck(d.deck);
+    } catch (e: any) {
+      setWarnings((w) => [...w, e?.message ?? String(e)]);
+    } finally {
+      setRepairBusy(false);
     }
   };
 
@@ -239,6 +261,14 @@ export function WebApp() {
             </button>
 
             <button
+              onClick={onRepair}
+              disabled={!deckId || repairBusy}
+              style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #ddd', background: '#fff' }}
+            >
+              {repairBusy ? 'Repairing…' : 'Repair'}
+            </button>
+
+            <button
               onClick={onDownloadPptx}
               disabled={!deckId}
               style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #ddd', background: '#fff' }}
@@ -274,12 +304,34 @@ export function WebApp() {
               </div>
               {Array.isArray(qaReport.issues) && qaReport.issues.length ? (
                 <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12 }}>
-                  {qaReport.issues.slice(0, 12).map((iss: any, i: number) => (
-                    <li key={i} style={{ marginBottom: 4 }}>
-                      <span style={{ fontWeight: 700 }}>{String(iss.level || 'info').toUpperCase()}</span>: {String(iss.message || '')}
-                      {iss.slideId ? <span style={{ color: '#666' }}> (slide {String(iss.slideId)})</span> : null}
-                    </li>
-                  ))}
+                  {qaReport.issues.slice(0, 12).map((iss: any, i: number) => {
+                    const sid = iss.slideId ? String(iss.slideId) : null;
+                    const slide = sid && deck ? deck.slides.find((s) => s.id === sid) : null;
+                    const slideLabel = slide ? `Slide ${Number(slide.order) + 1}` : sid ? 'Slide' : null;
+
+                    return (
+                      <li key={i} style={{ marginBottom: 4 }}>
+                        <span style={{ fontWeight: 700 }}>{String(iss.level || 'info').toUpperCase()}</span>: {String(iss.message || '')}
+                        {sid ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSlideId(sid)}
+                            style={{
+                              marginLeft: 8,
+                              fontSize: 11,
+                              padding: '2px 8px',
+                              borderRadius: 999,
+                              border: '1px solid #ddd',
+                              background: '#fff',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {slideLabel ?? 'Slide'}
+                          </button>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>No issues reported.</div>
@@ -304,22 +356,59 @@ export function WebApp() {
                 <div style={{ fontSize: 12, color: '#666' }}>{deck.slides.length} slides</div>
 
                 <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {deck.slides.slice(0, 10).map((s) => (
-                    <div key={s.id} style={{ padding: 10, borderRadius: 12, border: '1px solid #eee', background: '#fff' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{s.order + 1}. {s.title}</div>
-                        <div style={{ fontSize: 11, color: '#666' }}>{s.slideType}</div>
-                      </div>
-                      <div style={{ marginTop: 8 }}>
-                        <SlideThumb slide={s as any} widthPx={260} />
-                      </div>
-                    </div>
-                  ))}
+                  {deck.slides.slice(0, 10).map((s) => {
+                    const active = selectedSlideId === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSelectedSlideId(s.id)}
+                        style={{
+                          padding: 10,
+                          borderRadius: 12,
+                          border: active ? '2px solid #111' : '1px solid #eee',
+                          background: '#fff',
+                          cursor: 'pointer',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{s.order + 1}. {s.title}</div>
+                          <div style={{ fontSize: 11, color: '#666' }}>{s.slideType}</div>
+                        </div>
+                        <div style={{ marginTop: 8 }}>
+                          <SlideThumb slide={s as any} widthPx={260} />
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {deck.slides.length > 10 ? (
                   <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>Showing first 10 slides.</div>
                 ) : null}
+
+                {(() => {
+                  const sel = selectedSlideId ? deck.slides.find((s) => s.id === selectedSlideId) : null;
+                  if (!sel) return null;
+                  return (
+                    <div style={{ marginTop: 12, padding: 10, borderRadius: 12, border: '1px solid #eee', background: '#fff' }}>
+                      <div style={{ fontWeight: 800, marginBottom: 6 }}>Selected slide</div>
+                      <div style={{ fontSize: 12, color: '#666' }}>{sel.order + 1}. {sel.title}</div>
+                      <div style={{ marginTop: 8 }}>
+                        <SlideThumb slide={sel as any} widthPx={520} />
+                      </div>
+                      {sel.speakerNotes ? (
+                        <div style={{ marginTop: 8, fontSize: 12 }}>
+                          <div style={{ fontWeight: 700, marginBottom: 4 }}>Speaker notes</div>
+                          <div style={{ whiteSpace: 'pre-wrap', color: '#333' }}>{sel.speakerNotes}</div>
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>No speaker notes.</div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div style={{ marginTop: 10, fontSize: 12, color: '#666' }}>Generate a deck to preview it here.</div>
