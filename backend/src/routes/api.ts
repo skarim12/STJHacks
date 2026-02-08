@@ -467,6 +467,20 @@ router.post("/decorate-outline", async (req, res) => {
     // Layouts first
     await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
 
+    // Optional: deterministic section labels if requested
+    const wantsSections = /\bsections?\b/i.test(decoratePrompt) || /\bsectioning\b/i.test(decoratePrompt);
+    if (wantsSections) {
+      const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+      const groupSize = 4;
+      for (let i = 0; i < slides.length; i++) {
+        const s = slides[i];
+        if (!s) continue;
+        if (String(s.slideType || "").toLowerCase() === "title") continue;
+        const sectionIndex = Math.floor(i / groupSize) + 1;
+        (s as any).kicker = `SECTION ${sectionIndex}`;
+      }
+    }
+
     // Fill images only where layout reserves image space
     const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
     const indicesNeedingImage: number[] = [];
@@ -498,6 +512,54 @@ router.post("/decorate-outline", async (req, res) => {
     // eslint-disable-next-line no-console
     console.error(err);
     res.status(500).json({ error: "Failed to decorate outline", details: err.message });
+  }
+});
+
+// Decorate a single slide (iterate quickly without reworking the whole deck)
+router.post("/decorate-slide", async (req, res) => {
+  try {
+    const outline = (req.body as any)?.outline;
+    const decoratePrompt = String((req.body as any)?.decoratePrompt || "").trim();
+    const slideIndex = Number((req.body as any)?.slideIndex);
+    const allowExternalImages = (req.body as any)?.allowExternalImages === true;
+    const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
+    const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
+
+    if (!outline) return res.status(400).json({ error: "outline required" });
+    if (!Number.isFinite(slideIndex)) return res.status(400).json({ error: "slideIndex required" });
+
+    (outline as any).decoratePrompt = decoratePrompt;
+    enforceThemeStyle(outline);
+
+    // Ensure layouts exist
+    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+    const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+    if (slideIndex < 0 || slideIndex >= slides.length) {
+      return res.status(400).json({ error: `slideIndex out of range (0..${Math.max(0, slides.length - 1)})` });
+    }
+
+    const s = slides[slideIndex];
+    const variantName = String(s?.layoutPlan?.variant || "");
+    const variant = variantName ? getVariantByName(variantName) : null;
+    const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
+
+    const enrichment = await enrichOutlineWithImages(outline, {
+      allowExternalImages,
+      allowGeneratedImages,
+      imageStyle,
+      maxDeckImages: hasImageBox ? 1 : 0,
+      onlySlideIndices: hasImageBox ? [slideIndex] : [],
+      concurrency: allowExternalImages ? 1 : 2,
+    });
+
+    await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
+
+    res.json({ outline, enrichment });
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to decorate slide", details: err.message });
   }
 });
 

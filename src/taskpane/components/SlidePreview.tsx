@@ -9,7 +9,7 @@ interface Props {
 }
 
 export const SlidePreview: React.FC<Props> = ({ slides, onEdit }) => {
-  const { setSlideDescribe, setSlideLook, editSlide, getSlideHtml, generating } = useStore();
+  const { setSlideDescribe, setSlideLook, editSlide, getSlideHtml, decorateSlide, generating } = useStore();
   const [slideHtml, setSlideHtml] = useState<Record<number, string>>({});
   const [loadingIndex, setLoadingIndex] = useState<number | null>(null);
   const [editMsg, setEditMsg] = useState<Record<number, string>>({});
@@ -114,24 +114,40 @@ export const SlidePreview: React.FC<Props> = ({ slides, onEdit }) => {
                   onChange={(_, v) => setEditMsg((m) => ({ ...m, [index]: v || "" }))}
                   disabled={generating}
                 />
-                <PrimaryButton
-                  text="Apply slide edit"
-                  disabled={generating || !(editMsg[index] || "").trim()}
-                  onClick={async () => {
-                    const msg = (editMsg[index] || "").trim();
-                    if (!msg) return;
-                    await editSlide(index, msg);
-                    setEditMsg((m) => ({ ...m, [index]: "" }));
-                    // refresh preview automatically
-                    setLoadingIndex(index);
-                    try {
-                      const html = await getSlideHtml(index);
-                      setSlideHtml((m) => ({ ...m, [index]: html }));
-                    } finally {
-                      setLoadingIndex(null);
-                    }
-                  }}
-                />
+                <Stack horizontal tokens={{ childrenGap: 8 }}>
+                  <PrimaryButton
+                    text="Apply slide edit"
+                    disabled={generating || !(editMsg[index] || "").trim()}
+                    onClick={async () => {
+                      const msg = (editMsg[index] || "").trim();
+                      if (!msg) return;
+                      await editSlide(index, msg);
+                      setEditMsg((m) => ({ ...m, [index]: "" }));
+                      // refresh preview automatically
+                      setLoadingIndex(index);
+                      try {
+                        const html = await getSlideHtml(index);
+                        setSlideHtml((m) => ({ ...m, [index]: html }));
+                      } finally {
+                        setLoadingIndex(null);
+                      }
+                    }}
+                  />
+                  <DefaultButton
+                    text="Decorate this slide"
+                    disabled={generating}
+                    onClick={async () => {
+                      await decorateSlide(index, "Improve visuals/typography for this slide only.");
+                      setLoadingIndex(index);
+                      try {
+                        const html = await getSlideHtml(index);
+                        setSlideHtml((m) => ({ ...m, [index]: html }));
+                      } finally {
+                        setLoadingIndex(null);
+                      }
+                    }}
+                  />
+                </Stack>
               </Stack>
             ) : null
           }

@@ -299,13 +299,15 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
 
       if (kind === "header") {
         const headerH = Math.min(box.h, 1.1);
-        const kicker = String(s?.slideType || "").toLowerCase() === "comparison"
-          ? "COMPARISON"
-          : String(s?.slideType || "").toLowerCase() === "quote"
-            ? "QUOTE"
-            : String(s?.slideType || "").toLowerCase() === "imageplaceholder"
-              ? "VISUAL"
-              : "KEY POINTS";
+        const kicker =
+          String((s as any)?.kicker || "").trim() ||
+          (String(s?.slideType || "").toLowerCase() === "comparison"
+            ? "COMPARISON"
+            : String(s?.slideType || "").toLowerCase() === "quote"
+              ? "QUOTE"
+              : String(s?.slideType || "").toLowerCase() === "imageplaceholder"
+                ? "VISUAL"
+                : "KEY POINTS");
 
         // Kicker pill (adds immediate visual variety)
         const pillW = Math.min(3.0, box.w * 0.45);

@@ -69,6 +69,7 @@ interface AppState {
   // Flows
   applyThemePrompt: (themePrompt: string) => Promise<void>;
   decorateDeck: (decoratePrompt: string) => Promise<void>;
+  decorateSlide: (slideIndex: number, decoratePrompt: string) => Promise<void>;
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
   editFromMessage: (message: string) => Promise<void>;
   editSlide: (slideIndex: number, message: string) => Promise<void>;
@@ -185,6 +186,31 @@ export const useStore = create<AppState>((set, get) => ({
       set({ outline: next, slides: next.slides, lastEnrichment: resp?.enrichment || null });
     } catch (err: any) {
       set({ error: err?.message || "Failed to decorate deck" });
+    } finally {
+      set({ generating: false });
+    }
+  },
+
+  decorateSlide: async (slideIndex: number, decoratePrompt: string) => {
+    const current = get().outline;
+    if (!current) {
+      set({ error: "Generate an outline first, then decorate a slide." });
+      return;
+    }
+    set({ generating: true, error: null, lastEnrichment: null });
+    try {
+      const resp = await get().aiService.decorateSlide(
+        current,
+        slideIndex,
+        decoratePrompt,
+        get().externalImagesEnabled,
+        get().generatedImagesEnabled,
+        "photo"
+      );
+      const next = resp?.outline || current;
+      set({ outline: next, slides: next.slides, lastEnrichment: resp?.enrichment || null });
+    } catch (err: any) {
+      set({ error: err?.message || "Failed to decorate slide" });
     } finally {
       set({ generating: false });
     }
