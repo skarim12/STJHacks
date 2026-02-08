@@ -61,7 +61,8 @@ Generate a single style preset.`;
 
 async function anthropicGenerate(call: LlmCall): Promise<string> {
   const key = String(process.env.CLAUDE_API_KEY ?? '').trim();
-  const model = String(process.env.CLAUDE_MODEL ?? 'claude-3-5-sonnet-latest');
+  // Default to a widely-available Sonnet model; can be overridden via CLAUDE_MODEL.
+  const model = String(process.env.CLAUDE_MODEL ?? 'claude-3-5-sonnet-20241022');
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

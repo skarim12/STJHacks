@@ -139,6 +139,7 @@ export function IdeaInputPanel() {
     applyStylePreset,
     generateDesign,
     updateTheme,
+    insertCurrentDeck,
     aiEditSlide,
     searchPhotosForSlide,
     selectPhotoForSlide,
@@ -440,20 +441,30 @@ export function IdeaInputPanel() {
               <Card className={styles.panel}>
                 <CardHeader header={<Subtitle2>Export</Subtitle2>} description={<Caption1>Download deck JSON</Caption1>} />
                 <div className={styles.panelBody}>
-                  <Button
-                    appearance="primary"
-                    onClick={() => {
-                      const blob = new Blob([JSON.stringify(deck, null, 2)], { type: 'application/json' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${deck.title.replace(/[^a-z0-9]/gi, '_')}.json`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                  >
-                    Download deck JSON
-                  </Button>
+                  <div className={styles.row}>
+                    <Button
+                      appearance="primary"
+                      disabled={isGenerating}
+                      onClick={() => {
+                        const blob = new Blob([JSON.stringify(deck, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${deck.title.replace(/[^a-z0-9]/gi, '_')}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      Download deck JSON
+                    </Button>
+
+                    <Button appearance="secondary" disabled={isGenerating} onClick={() => insertCurrentDeck()}>
+                      Insert into PowerPoint
+                    </Button>
+                  </div>
+                  <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
+                    “Insert into PowerPoint” works when running inside the Office add-in. In the web demo it logs via MockPPT.
+                  </Caption1>
 
                   <div>
                     <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Attribution (selected photos)</Caption1>
