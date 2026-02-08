@@ -11,7 +11,14 @@ export const pickProvider = (): LlmProvider => {
   throw new Error('No LLM API key found. Set CLAUDE_API_KEY (Anthropic) or API_KEY (OpenAI).');
 };
 
-const systemPrompt = `You are a design system generator for presentation decks.
+export type LlmCall = {
+  system: string;
+  user: string;
+  maxTokens?: number;
+  temperature?: number;
+};
+
+const styleSystemPrompt = `You are a design system generator for presentation decks.
 Return ONLY valid JSON (no markdown) matching this TypeScript shape:
 {
   "id": string,
@@ -52,7 +59,7 @@ Audience: ${opts.audience ?? 'unspecified'}
 Generate a single style preset.`;
 };
 
-async function anthropicGenerate(jsonSchemaHint: string, content: string): Promise<string> {
+async function anthropicGenerate(call: LlmCall): Promise<string> {
   const key = String(process.env.CLAUDE_API_KEY ?? '').trim();
   const model = String(process.env.CLAUDE_MODEL ?? 'claude-3-5-sonnet-latest');
 
@@ -65,10 +72,10 @@ async function anthropicGenerate(jsonSchemaHint: string, content: string): Promi
     },
     body: JSON.stringify({
       model,
-      max_tokens: 900,
-      temperature: 0.6,
-      system: systemPrompt,
-      messages: [{ role: 'user', content }]
+      max_tokens: call.maxTokens ?? 900,
+      temperature: call.temperature ?? 0.6,
+      system: call.system,
+      messages: [{ role: 'user', content: call.user }]
     })
   });
 
@@ -83,7 +90,7 @@ async function anthropicGenerate(jsonSchemaHint: string, content: string): Promi
   return text;
 }
 
-async function openaiGenerate(content: string): Promise<string> {
+async function openaiGenerate(call: LlmCall): Promise<string> {
   const key = String(process.env.API_KEY ?? '').trim();
   const model = String(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
 
@@ -95,10 +102,10 @@ async function openaiGenerate(content: string): Promise<string> {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.6,
+      temperature: call.temperature ?? 0.6,
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content }
+        { role: 'system', content: call.system },
+        { role: 'user', content: call.user }
       ]
     })
   });
@@ -114,6 +121,18 @@ async function openaiGenerate(content: string): Promise<string> {
   return text;
 }
 
+export async function llmGenerate(call: LlmCall): Promise<{ raw: string; provider: LlmProvider }> {
+  const provider = pickProvider();
+
+  if (provider === 'anthropic') {
+    const raw = await anthropicGenerate(call);
+    return { raw, provider };
+  }
+
+  const raw = await openaiGenerate(call);
+  return { raw, provider };
+}
+
 export async function generateStylePresetLLM(opts: {
   deckTitle: string;
   deckPrompt: string;
@@ -121,16 +140,8 @@ export async function generateStylePresetLLM(opts: {
   tone?: string;
   audience?: string;
 }): Promise<{ raw: string; provider: LlmProvider }> {
-  const provider = pickProvider();
-  const content = userPrompt(opts);
-
-  if (provider === 'anthropic') {
-    const raw = await anthropicGenerate('', content);
-    return { raw, provider };
-  }
-
-  const raw = await openaiGenerate(content);
-  return { raw, provider };
+  const user = userPrompt(opts);
+  return await llmGenerate({ system: styleSystemPrompt, user, maxTokens: 900, temperature: 0.6 });
 }
 
 export function extractFirstJsonObject(raw: string): any {
