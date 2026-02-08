@@ -182,22 +182,79 @@ export async function fetchSlideImageFromWikimedia(opts: {
   const maxBytes = opts.maxBytes ?? 900_000; // ~0.9MB
   const thumbWidth = opts.thumbWidth ?? 1600;
 
-  const query = safeQueryPart(opts.query);
-  if (!query) return null;
+  const raw = String(opts.query || "").trim();
+  const base = safeQueryPart(raw);
+  if (!base) return null;
 
-  const found = await wikimediaSearchFirstImage(query, thumbWidth);
-  const chosenUrl = found?.thumbUrl || found?.imageUrl;
-  if (!chosenUrl) return null;
+  const tokenize = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9\s\-]/g, " ")
+      .split(/\s+/g)
+      .filter(Boolean);
 
-  const dl = await downloadAndCompressAsDataUri(chosenUrl, maxBytes);
-  if (!dl?.dataUri) return null;
+  const stop = new Set([
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "of",
+    "for",
+    "to",
+    "in",
+    "on",
+    "with",
+    "by",
+    "from",
+    "at",
+    "as",
+    "is",
+    "are",
+    "be",
+    "this",
+    "that",
+    "these",
+    "those",
+    "how",
+    "why",
+    "what",
+    "when",
+  ]);
 
-  return {
-    dataUri: dl.dataUri,
-    sourceUrl: chosenUrl,
-    sourcePage: found?.pageUrl,
-    credit: "Wikimedia Commons",
-  };
+  const words = tokenize(raw).filter((w) => !stop.has(w));
+
+  // Wikimedia search is sensitive to long, "prompt-like" queries.
+  // Try a few deterministic fallbacks from most-specific → most-general.
+  const variants = Array.from(
+    new Set(
+      [
+        base,
+        safeQueryPart(words.slice(0, 10).join(" ")),
+        safeQueryPart(words.slice(0, 6).join(" ")),
+        safeQueryPart(words.slice(0, 4).join(" ")),
+        safeQueryPart(words.slice(0, 3).join(" ")),
+      ].filter((q) => typeof q === "string" && q.trim().length >= 3)
+    )
+  );
+
+  for (const q of variants) {
+    const found = await wikimediaSearchFirstImage(q, thumbWidth);
+    const chosenUrl = found?.thumbUrl || found?.imageUrl;
+    if (!chosenUrl) continue;
+
+    const dl = await downloadAndCompressAsDataUri(chosenUrl, maxBytes);
+    if (!dl?.dataUri) continue;
+
+    return {
+      dataUri: dl.dataUri,
+      sourceUrl: chosenUrl,
+      sourcePage: found?.pageUrl,
+      credit: "Wikimedia Commons",
+    };
+  }
+
+  return null;
 }
 
 export function buildDefaultImageQuery(params: {
