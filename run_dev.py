@@ -108,7 +108,9 @@ def main():
     print("\nRunning. Press Ctrl+C to stop.", flush=True)
 
     p_backend = popen("node dist\\server.js", BACKEND, "backend", env=env_backend)
-    p_frontend = popen(f"{npm} run dev -- --port {ui_port}", APP, "frontend")
+    env_frontend = os.environ.copy()
+    env_frontend["BACKEND_PORT"] = str(backend_port)
+    p_frontend = popen(f"{npm} run dev -- --port {ui_port}", APP, "frontend", env=env_frontend)
 
     procs = [p_backend, p_frontend]
 

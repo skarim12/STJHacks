@@ -51,9 +51,9 @@ export const useStore = create<Store>((set, get) => ({
   status: 'idle',
   error: null,
 
-  ai: new AIService({ baseUrl: 'http://localhost:3000' }),
+  ai: new AIService({ baseUrl: `http://localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
 
-  deckApi: new DeckApiClient({ baseUrl: 'http://localhost:3000' }),
+  deckApi: new DeckApiClient({ baseUrl: `http://localhost:${(window as any).__BACKEND_PORT__ || '3000'}` }),
   deck: null,
   photoResultsBySlideId: {},
 

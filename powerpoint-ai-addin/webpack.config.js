@@ -30,7 +30,10 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, 'src/taskpane/taskpane.html'),
       filename: 'index.html',
-      chunks: ['taskpane']
+      chunks: ['taskpane'],
+      templateParameters: {
+        BACKEND_PORT: process.env.BACKEND_PORT || '3000'
+      }
     })
   ],
   devServer: {

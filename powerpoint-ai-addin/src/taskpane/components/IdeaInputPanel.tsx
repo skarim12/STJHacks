@@ -13,7 +13,9 @@ import {
   Body1,
   Badge,
   Caption1,
-  Input
+  Input,
+  Tab,
+  TabList
 } from '@fluentui/react-components';
 import { useStore } from '../store/useStore';
 
@@ -115,6 +117,7 @@ const useStyles = makeStyles({
 export function IdeaInputPanel() {
   const styles = useStyles();
   const [idea, setIdea] = useState('');
+  const [tab, setTab] = useState<'generate' | 'slides'>('generate');
   const {
     status,
     error,
@@ -156,7 +159,18 @@ export function IdeaInputPanel() {
         </div>
       </div>
 
-      {!deck ? (
+      <TabList
+        selectedValue={tab}
+        onTabSelect={(_, data) => setTab(data.value as any)}
+        style={{ marginBottom: 10 }}
+      >
+        <Tab value="generate">Generate</Tab>
+        <Tab value="slides" disabled={!deck}>
+          Slides
+        </Tab>
+      </TabList>
+
+      {!deck || tab === 'generate' ? (
         <Card className={styles.contentCard}>
           <CardHeader
             header={<Subtitle2>Generate a deck</Subtitle2>}
@@ -206,7 +220,7 @@ export function IdeaInputPanel() {
             {error ? <div className={styles.error}>{error}</div> : null}
           </div>
         </Card>
-      ) : (
+      ) : tab === 'slides' ? (
         <div className={styles.wrap}>
           <Card className={styles.contentCard}>
             <CardHeader
@@ -283,7 +297,7 @@ export function IdeaInputPanel() {
 
           {error ? <div className={styles.error}>{error}</div> : null}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
