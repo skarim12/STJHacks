@@ -73,7 +73,9 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
         continue;
       }
       const slideType = String(s.slideType || "").toLowerCase();
-      if (slideType === "title") {
+      // Usually skip title slides. But if caller explicitly selected this slide index,
+      // we should still attempt to fill it (title.center reserves image space).
+      if (slideType === "title" && !(only && only.has(i))) {
         report.skipped.title++;
         continue;
       }

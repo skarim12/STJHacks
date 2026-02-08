@@ -353,9 +353,6 @@ async function finalizeOutlineForRender(reqBody: any) {
   for (let i = 0; i < slides.length; i++) {
     const s = slides[i];
     if (!s) continue;
-    const t = String(s.slideType || "").toLowerCase();
-    if (t === "title") continue;
-
     const variantName = String(s?.layoutPlan?.variant || "");
     const variant = variantName ? getVariantByName(variantName) : null;
     const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
@@ -433,8 +430,6 @@ router.post("/export-pdf", async (req, res) => {
     for (let i = 0; i < slides.length; i++) {
       const s = slides[i];
       if (!s) continue;
-      const t = String(s.slideType || "").toLowerCase();
-      if (t === "title") continue;
       const variantName = String(s?.layoutPlan?.variant || "");
       const variant = variantName ? getVariantByName(variantName) : null;
       const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
@@ -506,8 +501,6 @@ router.post("/export-pptx", async (req, res) => {
     for (let i = 0; i < slides.length; i++) {
       const s = slides[i];
       if (!s) continue;
-      const t = String(s.slideType || "").toLowerCase();
-      if (t === "title") continue;
       const variantName = String(s?.layoutPlan?.variant || "");
       const variant = variantName ? getVariantByName(variantName) : null;
       const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
@@ -713,8 +706,6 @@ router.post("/slide-html", async (req, res) => {
     for (let i = 0; i < slidesAll.length; i++) {
       const s = slidesAll[i];
       if (!s) continue;
-      const t = String(s.slideType || "").toLowerCase();
-      if (t === "title") continue;
       const variantName = String(s?.layoutPlan?.variant || "");
       const variant = variantName ? getVariantByName(variantName) : null;
       const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
