@@ -22,7 +22,7 @@ const getPexelsKey = (): string | null => {
 assetsRouter.post('/search', async (req, res) => {
   const query = String(req.body?.query ?? '').trim();
   const kind = String(req.body?.kind ?? 'photo');
-  const perPage = Math.max(1, Math.min(10, Number(req.body?.count ?? 6)));
+  const perPage = Math.max(1, Math.min(30, Number(req.body?.count ?? 6)));
 
   if (!query) return res.status(400).json({ success: false, error: 'Missing query' });
   if (kind !== 'photo') {

@@ -43,12 +43,8 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
   warnings.push(...assetOut.warnings);
 
   // Phase C: auto-select stock photos for slides that want them (stock preferred)
-  // Keep API usage bounded for demos.
-  const MAX_AUTO_PHOTOS = 3;
-  let autoCount = 0;
-
+  // User requested: allow as many selections as needed (no global cap).
   for (const s of slides) {
-    if (autoCount >= MAX_AUTO_PHOTOS) break;
     if (s.visualIntent?.visualType !== 'photo') continue;
 
     const query = (s.visualIntent.queryTerms?.join(' ') || `${outline.title} ${s.title}`).trim();
@@ -75,7 +71,7 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
         }
       ];
 
-      autoCount++;
+      // no global cap
     } catch (e: any) {
       warnings.push(`Auto photo select failed for slide "${s.title}": ${e?.message ?? String(e)}`);
     }

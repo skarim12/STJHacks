@@ -31,7 +31,7 @@ export const searchPexelsPhotos = async (query: string, count = 6): Promise<Pexe
 
   const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${Math.max(
     1,
-    Math.min(10, count)
+    Math.min(30, count)
   )}`;
 
   const r = await fetch(url, { headers: { Authorization: apiKey } });

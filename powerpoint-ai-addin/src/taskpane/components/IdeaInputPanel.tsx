@@ -231,7 +231,7 @@ export function IdeaInputPanel() {
               {isGenerating ? 'Generating…' : deck ? 'Regenerate Deck' : 'Generate Deck'}
             </Button>
             <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
-              {isGenerating ? 'Working…' : 'Auto-selects up to 3 stock photos (PEXEL_API required).'}
+              {isGenerating ? 'Working…' : 'Auto-selects stock photos per slide when possible (PEXEL_API required).'}
             </Caption1>
           </div>
 
