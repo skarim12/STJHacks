@@ -164,11 +164,16 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
 
     const titleFontFace = String(titlePlan?.fontFace || "Calibri");
     const titleFontSize = Number(titlePlan?.fontSize);
+
+    // Titles are often outside cards; use deck text color by default.
     const titleColor = hexOrDefault(titlePlan?.color, text);
 
     const bodyFontFace = String(bodyPlan?.fontFace || "Calibri");
     const bodyFontSize = Number(bodyPlan?.fontSize);
-    const bodyColor = hexOrDefault(bodyPlan?.color, text);
+
+    // Most layouts render body content inside light "cards"; default to dark text for readability.
+    const defaultCardText = "#0B1220";
+    const bodyColor = hexOrDefault(bodyPlan?.color, defaultCardText);
 
     const content: string[] = Array.isArray(s?.content) ? s.content : [];
 

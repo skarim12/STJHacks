@@ -284,7 +284,11 @@ Rules:
 - Only choose from the allowed font faces and look values.
 - Coordinates are normalized within the SAFE area (0..1).
 - Shapes should be subtle (accents, dividers, highlights). Do NOT cover main text.
-- Prefer using the deck accent colors.
+- Prefer using the deck accent + secondary colors.
+- IMPORTANT: introduce tasteful variety across slides:
+  - Vary body fontSize slightly based on density/variant (within allowed ranges).
+  - Occasionally use a different fontFace (Calibri vs Segoe UI) to avoid sameness.
+  - Use color intentionally (kicker/underline/shape accents), but keep body text readable.
 - If unsure, return an empty slides array.
 `.trim();
 
@@ -312,27 +316,71 @@ ${JSON.stringify(payload, null, 2)}
   const sig = simpleHash(user);
   const cacheKey = `style:${deckTitle}:${sig}`;
 
-  let json: any;
+  let json: any = null;
   try {
     json = await opts.anthropicJsonRequest(cacheKey, system, user, 900);
   } catch {
-    return outline as Outline;
+    // fall through to deterministic defaults
   }
+
+  const applied = new Set<number>();
+
+  const applyStyle = (idx: number, st: any) => {
+    if (!Number.isFinite(idx) || idx < 0 || idx >= slides.length) return;
+    const zones = exclusionZonesForSlide(slides[idx]);
+    if (st.shapes) st.shapes = filterShapesAgainstZones(st.shapes, zones);
+    slides[idx].stylePlan = st;
+    if (st.look) slides[idx].look = st.look;
+    applied.add(idx);
+  };
 
   const arr = Array.isArray(json?.slides) ? json.slides : [];
   for (const entry of arr) {
     const idx = Number((entry as any)?.index);
-    if (!Number.isFinite(idx) || idx < 0 || idx >= slides.length) continue;
     const st = sanitizeSlideStyle((entry as any)?.style);
     if (!st) continue;
+    applyStyle(idx, st);
+  }
 
-    // Persist stylePlan on slide; keep deterministic renderer.
-    const zones = exclusionZonesForSlide(slides[idx]);
-    if (st.shapes) st.shapes = filterShapesAgainstZones(st.shapes, zones);
-    slides[idx].stylePlan = st;
+  // Deterministic fallback styles: add subtle variety even if AI returns empty.
+  const scheme = outline?.colorScheme || {};
+  const accent = normHex((scheme as any)?.accent) || normHex((scheme as any)?.primary) || "#6ee7ff";
+  const secondary = normHex((scheme as any)?.secondary) || "#a78bfa";
 
-    // Allow stylePlan.look to override slide look.
-    if (st.look) slides[idx].look = st.look;
+  const pick = (seed: string, options: string[]) => {
+    const h = parseInt(simpleHash(seed).slice(0, 8), 16) >>> 0;
+    return options[h % options.length];
+  };
+
+  const densityOf = (c: any[]): "light" | "medium" | "heavy" => {
+    const bullets = Array.isArray(c) ? c.map((x) => String(x || "").trim()).filter(Boolean) : [];
+    const total = bullets.reduce((a, b) => a + b.length, 0);
+    if (bullets.length >= 8 || total > 700) return "heavy";
+    if (bullets.length >= 5 || total > 420) return "medium";
+    return "light";
+  };
+
+  for (let i = 0; i < slides.length; i++) {
+    if (applied.has(i)) continue;
+    const s = slides[i] || {};
+    const variant = String(s?.layoutPlan?.variant || "");
+    const dens = densityOf(Array.isArray(s?.content) ? s.content : []);
+
+    const fontFace = pick(`${deckTitle}|${variant}|${i}|font`, ["Calibri", "Segoe UI", "Arial"]) as any;
+    const bodySize = dens === "heavy" ? 24 : dens === "medium" ? 26 : 28;
+    const titleSize = dens === "heavy" ? 56 : dens === "medium" ? 62 : 68;
+
+    const kickerColor = pick(`${deckTitle}|${variant}|${i}|kc`, [accent, secondary]);
+
+    applyStyle(i, {
+      title: { fontFace, fontSize: titleSize, color: "#ffffff", weight: "bold" },
+      kicker: { fontFace, fontSize: 18, color: kickerColor, weight: "medium" },
+      body: { fontFace, fontSize: bodySize, color: "#0b1220", weight: "regular" },
+      shapes: [
+        // A subtle top ribbon line that varies color.
+        { kind: "rect", x: 0.06, y: 0.09, w: 0.22, h: 0.012, fill: kickerColor, opacity: 0.9 },
+      ],
+    });
   }
 
   return outline as Outline;
