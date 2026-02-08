@@ -155,6 +155,16 @@ export class DeckApiClient {
     return await r.blob();
   }
 
+  async runQa(deckId: string): Promise<any> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/deck/${encodeURIComponent(deckId)}/qa/run`, { method: 'POST' });
+    return await r.json();
+  }
+
+  async improveDeck(deckId: string): Promise<any> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/deck/${encodeURIComponent(deckId)}/improve`, { method: 'POST' });
+    return await r.json();
+  }
+
   async generateSpeakerNotesForDeck(deckId: string): Promise<any> {
     const r = await fetch(`${this.cfg.baseUrl}/api/deck/${encodeURIComponent(deckId)}/speaker-notes/generate`, {
       method: 'POST'

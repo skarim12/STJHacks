@@ -35,6 +35,10 @@ export function WebApp() {
   const [deck, setDeck] = useState<DeckSchema | null>(null);
   const lastDoneDeckIdRef = useRef<string | null>(null);
 
+  const [qaReport, setQaReport] = useState<any | null>(null);
+  const [qaBusy, setQaBusy] = useState(false);
+  const [improveBusy, setImproveBusy] = useState(false);
+
   const pushEvent = (evt: StreamEvt) => {
     setEvents((e) => [...e.slice(-200), evt]);
   };
@@ -46,6 +50,7 @@ export function WebApp() {
     setEvents([]);
     setDeck(null);
     setDeckId(null);
+    setQaReport(null);
 
     try {
       lastDoneDeckIdRef.current = null;
@@ -81,6 +86,12 @@ export function WebApp() {
       if (finalId) {
         const r = await api.getDeck(finalId);
         if (r?.deck) setDeck(r.deck);
+        try {
+          const q = await api.runQa(finalId);
+          if (q?.report) setQaReport(q.report);
+        } catch {
+          // QA is best-effort in demo UI
+        }
       }
     } catch (e: any) {
       setWarnings((w) => [...w, e?.message ?? String(e)]);
@@ -100,6 +111,36 @@ export function WebApp() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const onRunQa = async () => {
+    if (!deckId) return;
+    setQaBusy(true);
+    try {
+      const q = await api.runQa(deckId);
+      if (q?.report) setQaReport(q.report);
+      else setWarnings((w) => [...w, q?.error ? String(q.error) : 'QA failed']);
+    } catch (e: any) {
+      setWarnings((w) => [...w, e?.message ?? String(e)]);
+    } finally {
+      setQaBusy(false);
+    }
+  };
+
+  const onImprove = async () => {
+    if (!deckId) return;
+    setImproveBusy(true);
+    try {
+      const r = await api.improveDeck(deckId);
+      if (r?.warnings?.length) setWarnings((w) => [...w, ...r.warnings.map((x: any) => String(x))]);
+      if (r?.report) setQaReport(r.report);
+      const d = await api.getDeck(deckId);
+      if (d?.deck) setDeck(d.deck);
+    } catch (e: any) {
+      setWarnings((w) => [...w, e?.message ?? String(e)]);
+    } finally {
+      setImproveBusy(false);
+    }
   };
 
   return (
@@ -165,7 +206,7 @@ export function WebApp() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
             <button
               onClick={onGenerate}
               disabled={busy || !prompt.trim()}
@@ -179,6 +220,22 @@ export function WebApp() {
               }}
             >
               {busy ? 'Generating…' : 'Generate deck'}
+            </button>
+
+            <button
+              onClick={onRunQa}
+              disabled={!deckId || qaBusy}
+              style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #ddd', background: '#fff' }}
+            >
+              {qaBusy ? 'Running QA…' : 'Run QA'}
+            </button>
+
+            <button
+              onClick={onImprove}
+              disabled={!deckId || improveBusy}
+              style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #ddd', background: '#fff' }}
+            >
+              {improveBusy ? 'Improving…' : 'Improve'}
             </button>
 
             <button
@@ -206,6 +263,32 @@ export function WebApp() {
               </ul>
             </div>
           )}
+
+          {qaReport ? (
+            <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid #e5e5e5', background: '#fff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <div style={{ fontWeight: 700 }}>QA Report</div>
+                <div style={{ fontSize: 12, color: '#666' }}>
+                  Score: <b>{String(qaReport.score ?? '—')}</b> · Pass: <b>{String(qaReport.pass ?? '—')}</b>
+                </div>
+              </div>
+              {Array.isArray(qaReport.issues) && qaReport.issues.length ? (
+                <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12 }}>
+                  {qaReport.issues.slice(0, 12).map((iss: any, i: number) => (
+                    <li key={i} style={{ marginBottom: 4 }}>
+                      <span style={{ fontWeight: 700 }}>{String(iss.level || 'info').toUpperCase()}</span>: {String(iss.message || '')}
+                      {iss.slideId ? <span style={{ color: '#666' }}> (slide {String(iss.slideId)})</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>No issues reported.</div>
+              )}
+              {Array.isArray(qaReport.issues) && qaReport.issues.length > 12 ? (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>Showing first 12 issues.</div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div>
