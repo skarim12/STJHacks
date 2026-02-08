@@ -197,9 +197,56 @@ export function buildFallbackLayoutPlan(opts: { deck: DeckSchema; slide: Slide }
     addCard(leftX - 0.15, bodyTop - 0.1, colW + 0.3, bodyH + 0.2);
     addCard(rightX - 0.15, bodyTop - 0.1, colW + 0.3, bodyH + 0.2);
 
-    // Use bullets kind for both columns; text renderer will choose from slide fields.
+    // Use bullets kind for both columns; (note) current renderers use Slide.bullets/bodyText.
+    // This layout is still useful for PPTX export, and we can later map left/right columns.
     boxes.push({ id: 'left', kind: 'bullets', x: leftX, y: bodyTop, w: colW, h: bodyH, fontFace: body, fontSize: 16, color: bodyColor });
     boxes.push({ id: 'right', kind: 'bullets', x: rightX, y: bodyTop, w: colW, h: bodyH, fontFace: body, fontSize: 16, color: bodyColor });
+
+    return { version: '1.0', slideW: SLIDE_W, slideH: SLIDE_H, boxes };
+  }
+
+  // Agenda / Summary: short bullet list with larger font.
+  if (/\b(agenda|overview|outline|today)\b/i.test(slide.title || '')) {
+    const titleH = 0.85;
+    addTitle(marginY, titleH, 36);
+    const bodyTop = marginY + titleH + 0.45;
+    const bodyH = SLIDE_H - bodyTop - marginY;
+    addCard(marginX - 0.2, bodyTop - 0.15, SLIDE_W - (marginX - 0.2) * 2, bodyH + 0.3);
+    boxes.push({ id: 'bullets', kind: 'bullets', x: marginX, y: bodyTop, w: SLIDE_W - marginX * 2, h: bodyH, fontFace: body, fontSize: 22, color: bodyColor });
+    return { version: '1.0', slideW: SLIDE_W, slideH: SLIDE_H, boxes };
+  }
+
+  if (/\b(summary|recap|takeaways|next steps)\b/i.test(slide.title || '')) {
+    const titleH = 0.85;
+    addTitle(marginY, titleH, 36);
+    const bodyTop = marginY + titleH + 0.45;
+    const bodyH = SLIDE_H - bodyTop - marginY;
+    addCard(marginX - 0.2, bodyTop - 0.15, SLIDE_W - (marginX - 0.2) * 2, bodyH + 0.3);
+    boxes.push({ id: 'bullets', kind: 'bullets', x: marginX, y: bodyTop, w: SLIDE_W - marginX * 2, h: bodyH, fontFace: body, fontSize: 20, color: bodyColor });
+    return { version: '1.0', slideW: SLIDE_W, slideH: SLIDE_H, boxes };
+  }
+
+  // Timeline / Process: bullets on left + image/diagram space on right
+  if (slide.visualIntent?.visualType === 'timeline' || /\b(timeline|milestones|roadmap|phases|steps|process)\b/i.test(slide.title || '')) {
+    const titleH = 0.85;
+    addTitle(marginY, titleH, 34);
+
+    const bodyTop = marginY + titleH + 0.35;
+    const bodyH = SLIDE_H - bodyTop - marginY;
+
+    const leftW = 6.4;
+    const rightW = SLIDE_W - marginX * 2 - leftW - gap;
+
+    const leftX = marginX;
+    const rightX = marginX + leftW + gap;
+
+    addCard(leftX - 0.15, bodyTop - 0.1, leftW + 0.3, bodyH + 0.2);
+    addCard(rightX - 0.15, bodyTop - 0.1, rightW + 0.3, bodyH + 0.2);
+
+    boxes.push({ id: 'bullets', kind: 'bullets', x: leftX, y: bodyTop, w: leftW, h: bodyH, fontFace: body, fontSize: 18, color: bodyColor });
+    // Reserve visual space: if we have a photo, use it; otherwise leave as shape box.
+    if (hasPhoto) addImage(rightX, bodyTop, rightW, bodyH);
+    else boxes.push({ id: 'shape-timeline', kind: 'shape', x: rightX, y: bodyTop, w: rightW, h: bodyH, fill: 'rgba(0,0,0,0.03)', line: 'rgba(0,0,0,0.06)', radius: 0.18 });
 
     return { version: '1.0', slideW: SLIDE_W, slideH: SLIDE_H, boxes };
   }

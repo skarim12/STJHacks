@@ -119,6 +119,24 @@ export function WebApp() {
     URL.revokeObjectURL(url);
   };
 
+  const onDownloadReport = async () => {
+    if (!deckId) return;
+    try {
+      const r = await api.getReport(deckId);
+      const blob = new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(deck?.title || 'deck').replace(/[^a-z0-9-_]+/gi, '_')}.report.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setWarnings((w) => [...w, e?.message ?? String(e)]);
+    }
+  };
+
   const onRunQa = async () => {
     if (!deckId) return;
     setQaBusy(true);
@@ -274,6 +292,14 @@ export function WebApp() {
               style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #ddd', background: '#fff' }}
             >
               Download PPTX
+            </button>
+
+            <button
+              onClick={onDownloadReport}
+              disabled={!deckId}
+              style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #ddd', background: '#fff' }}
+            >
+              Download report (QA + assets)
             </button>
           </div>
 

@@ -170,6 +170,11 @@ export class DeckApiClient {
     return await r.json();
   }
 
+  async getReport(deckId: string): Promise<any> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/export/report/${encodeURIComponent(deckId)}`);
+    return await r.json();
+  }
+
   async generateSpeakerNotesForDeck(deckId: string): Promise<any> {
     const r = await fetch(`${this.cfg.baseUrl}/api/deck/${encodeURIComponent(deckId)}/speaker-notes/generate`, {
       method: 'POST'
