@@ -38,6 +38,8 @@ export const IdeaInputPanel: React.FC = () => {
 
   const {
     generateFromIdea,
+    applyThemePrompt,
+    decorateDeck,
     editFromMessage,
     exportPptx,
     exportPdf,
@@ -55,6 +57,8 @@ export const IdeaInputPanel: React.FC = () => {
   } = useStore();
 
   const [editMessage, setEditMessage] = useState("");
+  const [themePrompt, setThemePrompt] = useState("");
+  const [decoratePrompt, setDecoratePrompt] = useState("");
 
   const w = window as any;
   const isOfficeHost = !!w.Office && typeof w.Office.onReady === "function";
@@ -149,6 +153,32 @@ export const IdeaInputPanel: React.FC = () => {
         onClick={handleGenerate}
         disabled={!debouncedIdea || generating}
         iconProps={{ iconName: "Lightbulb" }}
+      />
+
+      <TextField
+        label="Theme prompt (background, shapes, mood)"
+        placeholder='Example: "Fintech. Dark navy background, neon cyan accent, angular ribbons, subtle grid dots. High contrast."'
+        value={themePrompt}
+        onChange={(_, v) => setThemePrompt(v || "")}
+        disabled={generating}
+      />
+      <DefaultButton
+        text="Apply Theme"
+        disabled={generating || !themePrompt.trim()}
+        onClick={() => applyThemePrompt(themePrompt.trim())}
+      />
+
+      <TextField
+        label="Decorate prompt (images + polish)"
+        placeholder='Example: "Add relevant imagery to every slide that has an image slot. Keep consistent style. Improve composition."'
+        value={decoratePrompt}
+        onChange={(_, v) => setDecoratePrompt(v || "")}
+        disabled={generating}
+      />
+      <DefaultButton
+        text="Decorate Deck"
+        disabled={generating || !decoratePrompt.trim()}
+        onClick={() => decorateDeck(decoratePrompt.trim())}
       />
 
       {lastEnrichment && (

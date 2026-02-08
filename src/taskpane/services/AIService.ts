@@ -266,6 +266,42 @@ Return STRICT JSON only: { "notes": "..." }
     }
   }
 
+  async themeFromPrompt(
+    outline: PresentationOutline,
+    themePrompt: string
+  ): Promise<{ outline: PresentationOutline }> {
+    try {
+      const response = await axios.post(`${API_BASE}/theme-from-prompt`, { outline, themePrompt });
+      return { outline: (response.data as any)?.outline as PresentationOutline };
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
+  }
+
+  async decorateOutline(
+    outline: PresentationOutline,
+    decoratePrompt: string,
+    allowExternalImages: boolean,
+    allowGeneratedImages: boolean,
+    imageStyle: "photo" | "illustration" = "photo"
+  ): Promise<{ outline: PresentationOutline; enrichment?: any }> {
+    try {
+      const response = await axios.post(`${API_BASE}/decorate-outline`, {
+        outline,
+        decoratePrompt,
+        allowExternalImages,
+        allowGeneratedImages,
+        imageStyle,
+      });
+      return {
+        outline: (response.data as any)?.outline as PresentationOutline,
+        enrichment: (response.data as any)?.enrichment,
+      };
+    } catch (err: any) {
+      throw new Error(extractApiError(err));
+    }
+  }
+
   async finalizeOutline(
     outline: PresentationOutline,
     useAi: boolean = true,

@@ -382,6 +382,115 @@ async function finalizeOutlineForRender(reqBody: any) {
 
 // Finalize an outline (images + layout plans + style plans) WITHOUT rendering HTML.
 // This supports the "Generate presentation" flow so the user immediately has a finished deck.
+router.post("/theme-from-prompt", async (req, res) => {
+  try {
+    const outline = (req.body as any)?.outline;
+    const themePrompt = String((req.body as any)?.themePrompt || "").trim();
+    if (!outline) return res.status(400).json({ error: "outline required" });
+    if (!themePrompt) return res.status(400).json({ error: "themePrompt required" });
+
+    const system = `You are a presentation theme designer.
+
+Return STRICT JSON only:
+{
+  "look": "default|light|dark|bold",
+  "themeStyle": {
+    "mood": "calm|energetic|serious|playful",
+    "background": "solid|subtleGradient",
+    "panels": "glass|flat",
+    "contrast": "auto|high"
+  },
+  "colorScheme": {
+    "primary": "#RRGGBB",
+    "secondary": "#RRGGBB",
+    "accent": "#RRGGBB",
+    "background": "#RRGGBB",
+    "text": "#RRGGBB"
+  }
+}
+
+Rules:
+- Prefer practical, PPT-friendly themes.
+- Keep strong contrast for readability.
+- Use ONLY hex colors.
+- No extra keys, no markdown.`.trim();
+
+    const user = `Deck title: ${String((outline as any)?.title || "").slice(0, 120)}
+Existing colors (if any): ${JSON.stringify((outline as any)?.colorScheme || {})}
+Existing look: ${String((outline as any)?.look || "default")}
+
+Theme prompt:
+${themePrompt}`;
+
+    const cacheKey = `theme:${String((outline as any)?.title || "deck").slice(0, 60)}:${themePrompt.slice(0, 200)}`;
+    const json = await anthropicJsonRequest(cacheKey, system, user, 900);
+
+    (outline as any).look = String((json as any)?.look || (outline as any).look || "default");
+    (outline as any).themeStyle = (json as any)?.themeStyle || (outline as any).themeStyle;
+    (outline as any).colorScheme = (json as any)?.colorScheme || (outline as any).colorScheme;
+    (outline as any).themePrompt = themePrompt;
+
+    enforceThemeStyle(outline);
+
+    res.json({ outline });
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to generate theme", details: err.message });
+  }
+});
+
+router.post("/decorate-outline", async (req, res) => {
+  try {
+    const outline = (req.body as any)?.outline;
+    const decoratePrompt = String((req.body as any)?.decoratePrompt || "").trim();
+    const allowExternalImages = (req.body as any)?.allowExternalImages === true;
+    const allowGeneratedImages = (req.body as any)?.allowGeneratedImages === true;
+    const imageStyle = (((req.body as any)?.imageStyle || "photo") as "photo" | "illustration");
+
+    if (!outline) return res.status(400).json({ error: "outline required" });
+    if (!decoratePrompt) return res.status(400).json({ error: "decoratePrompt required" });
+
+    (outline as any).decoratePrompt = decoratePrompt;
+    enforceThemeStyle(outline);
+
+    // Layouts first
+    await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
+
+    // Fill images only where layout reserves image space
+    const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+    const indicesNeedingImage: number[] = [];
+    for (let i = 0; i < slides.length; i++) {
+      const s = slides[i];
+      if (!s) continue;
+      const variantName = String(s?.layoutPlan?.variant || "");
+      const variant = variantName ? getVariantByName(variantName) : null;
+      const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
+      if (hasImageBox) indicesNeedingImage.push(i);
+    }
+
+    const maxDeckImages = Math.max(0, Math.min(indicesNeedingImage.length, 40));
+
+    const enrichment = await enrichOutlineWithImages(outline, {
+      allowExternalImages,
+      allowGeneratedImages,
+      imageStyle,
+      maxDeckImages,
+      onlySlideIndices: indicesNeedingImage,
+      concurrency: allowExternalImages ? 1 : 2,
+    });
+
+    // Style pass (shapes/typography) after layouts+images
+    await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
+
+    res.json({ outline, enrichment });
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "Failed to decorate outline", details: err.message });
+  }
+});
+
 router.post("/finalize-outline", async (req, res) => {
   try {
     const { outline, enrichment } = await finalizeOutlineForRender(req.body);

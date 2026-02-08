@@ -67,6 +67,8 @@ interface AppState {
   setSlideLook: (index: number, look: "default" | "light" | "dark" | "bold") => void;
 
   // Flows
+  applyThemePrompt: (themePrompt: string) => Promise<void>;
+  decorateDeck: (decoratePrompt: string) => Promise<void>;
   generateFromIdea: (idea: string, prefs?: UserPreferences) => Promise<void>;
   editFromMessage: (message: string) => Promise<void>;
   editSlide: (slideIndex: number, message: string) => Promise<void>;
@@ -144,6 +146,48 @@ export const useStore = create<AppState>((set, get) => ({
     if (!current) return;
     const slides = current.slides.map((s, i) => (i === index ? { ...s, look } : s));
     set({ outline: { ...current, slides }, slides });
+  },
+
+  applyThemePrompt: async (themePrompt: string) => {
+    const current = get().outline;
+    if (!current) {
+      set({ error: "Generate an outline first, then apply a theme prompt." });
+      return;
+    }
+    set({ generating: true, error: null });
+    try {
+      const resp = await get().aiService.themeFromPrompt(current, themePrompt);
+      const next = resp?.outline || current;
+      set({ outline: next, slides: next.slides });
+    } catch (err: any) {
+      set({ error: err?.message || "Failed to apply theme" });
+    } finally {
+      set({ generating: false });
+    }
+  },
+
+  decorateDeck: async (decoratePrompt: string) => {
+    const current = get().outline;
+    if (!current) {
+      set({ error: "Generate an outline first, then decorate the deck." });
+      return;
+    }
+    set({ generating: true, error: null, lastEnrichment: null });
+    try {
+      const resp = await get().aiService.decorateOutline(
+        current,
+        decoratePrompt,
+        get().externalImagesEnabled,
+        get().generatedImagesEnabled,
+        "photo"
+      );
+      const next = resp?.outline || current;
+      set({ outline: next, slides: next.slides, lastEnrichment: resp?.enrichment || null });
+    } catch (err: any) {
+      set({ error: err?.message || "Failed to decorate deck" });
+    } finally {
+      set({ generating: false });
+    }
   },
 
   generateFromIdea: async (idea: string, prefs?: UserPreferences) => {

@@ -255,6 +255,8 @@ export async function enrichOutlineWithStyles(outline: any, opts: StyleEnrichmen
   const deckTitle = String(outline?.title || "").slice(0, 80);
   const deckDescribe = String(outline?.describe || "").slice(0, 280);
   const deckLook = String(outline?.look || "default");
+  const themePrompt = String((outline as any)?.themePrompt || "").slice(0, 400);
+  const decoratePrompt = String((outline as any)?.decoratePrompt || "").slice(0, 400);
 
   const system = `You are a slide stylist and illustrator.
 
@@ -300,6 +302,8 @@ Rules:
 Deck describe: ${deckDescribe}
 Deck look: ${deckLook}
 Deck colors: ${JSON.stringify(outline?.colorScheme || {})}
+Theme prompt (optional): ${themePrompt}
+Decorate prompt (optional): ${decoratePrompt}
 
 Slides:
 ${JSON.stringify(payload, null, 2)}
