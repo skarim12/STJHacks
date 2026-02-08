@@ -114,6 +114,8 @@ export interface DeckSchema {
   title: string;
   description?: string;
   theme: ThemeTokens;
+  /** Optional decoration tokens (e.g., gradient) for exporters/renderers. */
+  decoration?: DecorationTokens;
   slides: Slide[];
   metadata: DeckMetadata;
 }

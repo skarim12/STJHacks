@@ -302,6 +302,7 @@ export const useStore = create<Store>((set, get) => ({
         deck: {
           ...s.deck,
           theme: { ...s.deck.theme, ...preset.theme },
+          decoration: (preset as any).decoration ?? (s.deck as any).decoration,
           metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
         }
       };
@@ -337,6 +338,7 @@ export const useStore = create<Store>((set, get) => ({
         deck: {
           ...deck,
           theme: { ...deck.theme, ...preset.theme },
+          decoration: (preset as any).decoration ?? (deck as any).decoration,
           metadata: { ...deck.metadata, updatedAt: new Date().toISOString() }
         }
       }));

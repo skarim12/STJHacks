@@ -200,10 +200,13 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
   const stylePresets = agentStylePreset ? [agentStylePreset, ...fallbackStylePresets] : fallbackStylePresets;
   const recommendedStyleId = (agentStylePreset?.id ?? fallbackStylePresets[0].id) as string;
 
-  // Apply recommended theme immediately
+  // Apply recommended theme + decoration immediately
   const recPreset = stylePresets.find((s: any) => s.id === recommendedStyleId);
   if (recPreset?.theme) {
     deck.theme = { ...deck.theme, ...recPreset.theme };
+  }
+  if (recPreset?.decoration) {
+    (deck as any).decoration = recPreset.decoration;
   }
 
   return {

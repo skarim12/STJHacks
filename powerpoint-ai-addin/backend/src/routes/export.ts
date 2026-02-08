@@ -10,20 +10,121 @@ function safeFileName(name: string): string {
   return base.slice(0, 80) || 'deck';
 }
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function hslTripletToRgb(triplet: string): { r: number; g: number; b: number } {
+  // input like "220 70% 50%"
+  const parts = triplet.trim().split(/\s+/);
+  const h = Number(parts[0] ?? 0);
+  const s = Number(String(parts[1] ?? '0').replace('%', '')) / 100;
+  const l = Number(String(parts[2] ?? '0').replace('%', '')) / 100;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const hh = ((h % 360) + 360) % 360 / 60;
+  const x = c * (1 - Math.abs((hh % 2) - 1));
+
+  let r1 = 0,
+    g1 = 0,
+    b1 = 0;
+  if (hh >= 0 && hh < 1) [r1, g1, b1] = [c, x, 0];
+  else if (hh < 2) [r1, g1, b1] = [x, c, 0];
+  else if (hh < 3) [r1, g1, b1] = [0, c, x];
+  else if (hh < 4) [r1, g1, b1] = [0, x, c];
+  else if (hh < 5) [r1, g1, b1] = [x, 0, c];
+  else [r1, g1, b1] = [c, 0, x];
+
+  const m = l - c / 2;
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255)
+  };
+}
+
+function rgbToHex(rgb: { r: number; g: number; b: number }): string {
+  const to = (n: number) => clamp(Math.round(n), 0, 255).toString(16).padStart(2, '0');
+  return `${to(rgb.r)}${to(rgb.g)}${to(rgb.b)}`.toUpperCase();
+}
+
+function hslTripletToHex(triplet: string): string {
+  return rgbToHex(hslTripletToRgb(triplet));
+}
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
+function lerpRgb(a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }, t: number) {
+  return {
+    r: lerp(a.r, b.r, t),
+    g: lerp(a.g, b.g, t),
+    b: lerp(a.b, b.b, t)
+  };
+}
+
+function extractGradientTriplets(gradientCss: string): string[] {
+  // find hsl(220 70% 50% / 0.2) or hsl(220 70% 50%) and return triplet part
+  const triplets: string[] = [];
+  const re = /hsl\(\s*([0-9.]+\s+[0-9.]+%\s+[0-9.]+%)(?:\s*\/\s*[0-9.]+)?\s*\)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(gradientCss))) {
+    triplets.push(m[1]);
+  }
+  return triplets;
+}
+
+function addBackground(s: any, deck: DeckSchema) {
+  const W = 13.333;
+  const H = 7.5;
+
+  const bgTriplet = deck.theme?.backgroundColor || '0 0% 100%';
+  const bgHex = hslTripletToHex(bgTriplet);
+
+  // If we have a gradient, approximate it with bands (PptxGenJS doesn't do CSS gradients).
+  const gradientCss = deck.decoration?.gradientCss;
+  const triplets = gradientCss ? extractGradientTriplets(gradientCss) : [];
+
+  if (triplets.length >= 2) {
+    const a = hslTripletToRgb(triplets[0]);
+    const b = hslTripletToRgb(triplets[triplets.length - 1]);
+
+    const bands = 18;
+    const bandH = H / bands;
+
+    for (let i = 0; i < bands; i++) {
+      const t = i / (bands - 1);
+      const rgb = lerpRgb(a, b, t);
+      const hex = rgbToHex(rgb);
+      s.addShape('rect', {
+        x: 0,
+        y: i * bandH,
+        w: W,
+        h: bandH + 0.01,
+        fill: { color: hex },
+        line: { color: hex }
+      });
+    }
+    return;
+  }
+
+  // Solid fallback
+  s.addShape('rect', {
+    x: 0,
+    y: 0,
+    w: W,
+    h: H,
+    fill: { color: bgHex },
+    line: { color: bgHex }
+  });
+}
+
 function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
   const s = pptx.addSlide();
 
-  // Background: PPTXGen supports solid fill easily; gradients are non-trivial.
-  // We’ll use solid backgroundColor as a baseline.
-  const bg = deck.theme?.backgroundColor ? `hsl(${deck.theme.backgroundColor})` : undefined;
-  if (bg) {
-    try {
-      // @ts-ignore
-      s.background = { color: 'FFFFFF' };
-    } catch {
-      // ignore
-    }
-  }
+  // Apply theme background (gradient approximation if provided)
+  addBackground(s, deck);
 
   // Layout constants for LAYOUT_WIDE (13.333 x 7.5)
   const marginX = 0.5;
@@ -35,6 +136,22 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
   const titleW = 12.3;
   const bodyW = hasPhoto ? 6.3 : 12.3;
 
+  const titleColor = deck.theme?.accentColor ? hslTripletToHex(deck.theme.accentColor) : '111111';
+  const bodyColor = deck.theme?.textColor ? hslTripletToHex(deck.theme.textColor) : '222222';
+
+  // Optional "header stripe" decoration
+  if (deck.decoration?.headerStripe && deck.theme?.primaryColor) {
+    const stripeHex = hslTripletToHex(deck.theme.primaryColor);
+    s.addShape('rect', {
+      x: 0,
+      y: 0,
+      w: 13.333,
+      h: 0.18,
+      fill: { color: stripeHex },
+      line: { color: stripeHex }
+    });
+  }
+
   s.addText(slide.title || '', {
     x: marginX,
     y: titleY,
@@ -42,7 +159,7 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
     h: 0.6,
     fontFace: deck.theme?.fontHeading || 'Calibri',
     fontSize: 30,
-    color: '111111'
+    color: titleColor
   });
 
   const bodyLines = slide.bullets?.length
@@ -52,6 +169,20 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
       : [];
 
   if (bodyLines.length) {
+    // Optional "card" behind body text
+    if (deck.decoration?.cardStyle === 'softShadow') {
+      const cardHex = deck.theme?.secondaryColor ? hslTripletToHex(deck.theme.secondaryColor) : 'FFFFFF';
+      s.addShape('roundRect', {
+        x: marginX - 0.1,
+        y: bodyY - 0.1,
+        w: bodyW + 0.2,
+        h: 5.9,
+        fill: { color: cardHex, transparency: 15 },
+        line: { color: cardHex, transparency: 100 },
+        radius: 0.16
+      });
+    }
+
     s.addText(bodyLines.join('\n'), {
       x: marginX,
       y: bodyY,
@@ -59,7 +190,7 @@ function addSlide(pptx: any, slide: Slide, deck: DeckSchema) {
       h: 5.8,
       fontFace: deck.theme?.fontBody || 'Calibri',
       fontSize: 18,
-      color: '222222',
+      color: bodyColor,
       valign: 'top'
     });
   }

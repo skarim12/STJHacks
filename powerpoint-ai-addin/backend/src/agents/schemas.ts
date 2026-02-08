@@ -123,6 +123,7 @@ export const DeckSchemaZ = z.object({
   title: z.string(),
   description: z.string().optional(),
   theme: ThemeTokensZ,
+  decoration: DecorationTokensZ.optional(),
   slides: z.array(SlideZ),
   metadata: DeckMetadataZ
 });
