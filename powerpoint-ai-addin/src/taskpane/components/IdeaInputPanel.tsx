@@ -142,6 +142,8 @@ export function IdeaInputPanel() {
     aiEditSlide,
     searchPhotosForSlide,
     selectPhotoForSlide,
+    autoPickVisualForSlide,
+    generateAiImageForSlide,
     photoResultsBySlideId
   } = useStore();
 
@@ -308,7 +310,28 @@ export function IdeaInputPanel() {
                         >
                           Search stock photos
                         </Button>
+                        <Button
+                          appearance="secondary"
+                          size="small"
+                          disabled={isGenerating}
+                          onClick={() => autoPickVisualForSlide(selectedSlide.id)}
+                        >
+                          Auto-pick visual
+                        </Button>
                       </div>
+                      <Field label="AI image prompt (optional)" hint="Press Enter to generate and set this slide image">
+                        <Input
+                          placeholder={`e.g. "Modern illustration of ${selectedSlide.title}"`}
+                          disabled={isGenerating}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const val = (e.target as HTMLInputElement).value;
+                              (e.target as HTMLInputElement).value = '';
+                              generateAiImageForSlide(selectedSlide.id, val);
+                            }
+                          }}
+                        />
+                      </Field>
 
                       {photoResultsBySlideId[selectedSlide.id]?.length ? (
                         <div className={styles.thumbRow}>

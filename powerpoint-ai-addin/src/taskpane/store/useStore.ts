@@ -47,6 +47,8 @@ type Store = {
 
   searchPhotosForSlide: (slideId: string, query: string) => Promise<void>;
   selectPhotoForSlide: (slideId: string, r: PhotoSearchResult) => Promise<void>;
+  autoPickVisualForSlide: (slideId: string) => Promise<void>;
+  generateAiImageForSlide: (slideId: string, prompt: string) => Promise<void>;
 
   aiEditSlide: (slideId: string, instruction: string) => Promise<void>;
   updateTheme: (patch: Partial<DeckSchema['theme']>) => void;
@@ -113,6 +115,95 @@ export const useStore = create<Store>((set, get) => ({
         status: 'done',
         photoResultsBySlideId: { ...s.photoResultsBySlideId, [slideId]: results }
       }));
+    } catch (e: any) {
+      set({ status: 'error', error: e?.message ?? String(e) });
+    }
+  },
+
+  autoPickVisualForSlide: async (slideId: string) => {
+    const deck = get().deck;
+    if (!deck) return;
+    set({ status: 'generating', error: null });
+    try {
+      const resp = await get().deckApi.autoPickVisual(deck.id, slideId);
+      if (!resp?.success || !resp?.asset) throw new Error(resp?.error ?? 'Auto-pick visual failed');
+
+      const asset = resp.asset as any;
+      set((s) => {
+        if (!s.deck) return s as any;
+        return {
+          ...s,
+          status: 'done',
+          deck: {
+            ...s.deck,
+            slides: s.deck.slides.map((sl) =>
+              sl.id === slideId
+                ? ({
+                    ...sl,
+                    selectedAssets: [
+                      ...(sl.selectedAssets ?? []).filter((a) => a.kind !== 'photo'),
+                      {
+                        kind: 'photo',
+                        dataUri: asset.dataUri,
+                        sourceUrl: asset.sourceUrl,
+                        attribution: asset.attribution,
+                        license: asset.license,
+                        altText: asset.altText
+                      }
+                    ]
+                  } as any)
+                : sl
+            ),
+            metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
+          }
+        };
+      });
+    } catch (e: any) {
+      set({ status: 'error', error: e?.message ?? String(e) });
+    }
+  },
+
+  generateAiImageForSlide: async (slideId: string, prompt: string) => {
+    const deck = get().deck;
+    if (!deck) return;
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+
+    set({ status: 'generating', error: null });
+    try {
+      const resp = await get().deckApi.generateAiImage({ prompt: trimmed });
+      if (!resp?.success || !resp?.asset) throw new Error(resp?.error ?? 'AI image generation failed');
+
+      const asset = resp.asset as any;
+      set((s) => {
+        if (!s.deck) return s as any;
+        return {
+          ...s,
+          status: 'done',
+          deck: {
+            ...s.deck,
+            slides: s.deck.slides.map((sl) =>
+              sl.id === slideId
+                ? ({
+                    ...sl,
+                    selectedAssets: [
+                      ...(sl.selectedAssets ?? []).filter((a) => a.kind !== 'photo'),
+                      {
+                        kind: 'photo',
+                        dataUri: asset.dataUri,
+                        sourceUrl: asset.sourceUrl,
+                        attribution: asset.attribution,
+                        license: asset.license,
+                        altText: asset.altText
+                      }
+                    ]
+                  } as any)
+                : sl
+            ),
+            metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
+          }
+        };
+      });
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });
     }

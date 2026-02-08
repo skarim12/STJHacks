@@ -151,3 +151,36 @@ assetsRouter.post('/fetch', async (req, res) => {
     return res.status(500).json({ success: false, error: e?.message ?? String(e) });
   }
 });
+
+// AI image generation (OpenAI) - fallback when stock isn't good enough.
+assetsRouter.post('/generate-image', async (req, res) => {
+  const prompt = String(req.body?.prompt ?? '').trim();
+  const size = String(req.body?.size ?? '1536x1024').trim();
+
+  if (!prompt) return res.status(400).json({ success: false, error: 'Missing prompt' });
+
+  try {
+    const { generateOpenAiImageBase64 } = await import('../services/openaiImages.js');
+    const out = await generateOpenAiImageBase64({
+      prompt,
+      size: (size as any) || '1536x1024'
+    });
+
+    return res.json({
+      success: true,
+      asset: {
+        assetId: `ai-${Date.now()}`,
+        kind: 'photo',
+        sourceUrl: undefined,
+        altText: prompt,
+        attribution: 'AI-generated (OpenAI)',
+        license: 'AI-generated',
+        contentType: 'image/png',
+        dataUri: `data:image/png;base64,${out.b64}`,
+        revisedPrompt: out.revisedPrompt
+      }
+    });
+  } catch (e: any) {
+    return res.status(500).json({ success: false, error: e?.message ?? String(e) });
+  }
+});

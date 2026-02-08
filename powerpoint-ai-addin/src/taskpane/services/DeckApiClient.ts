@@ -5,6 +5,7 @@ export class DeckApiClient {
 
   async generateDeck(req: {
     prompt: string;
+    designPrompt?: string;
     slideCount?: number;
     targetAudience?: string;
     tone?: 'formal' | 'casual' | 'technical' | 'creative';
@@ -48,4 +49,23 @@ export class DeckApiClient {
     });
     return await r.json();
   }
+
+  async autoPickVisual(deckId: string, slideId: string, opts?: { query?: string; prompt?: string }): Promise<any> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/deck/${deckId}/slides/${slideId}/visuals/auto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: opts?.query, prompt: opts?.prompt })
+    });
+    return await r.json();
+  }
+
+  async generateAiImage(opts: { prompt: string; size?: string }): Promise<any> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/assets/generate-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts)
+    });
+    return await r.json();
+  }
 }
+
