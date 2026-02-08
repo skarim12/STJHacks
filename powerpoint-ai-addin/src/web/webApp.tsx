@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import type { DeckSchema } from '../taskpane/types/deck';
 import { DeckApiClient } from '../taskpane/services/DeckApiClient';
+import { SlideThumb } from './SlideThumb';
 
 declare global {
   interface Window {
@@ -219,18 +220,16 @@ export function WebApp() {
                 <div style={{ fontSize: 16, fontWeight: 700 }}>{deck.title}</div>
                 <div style={{ fontSize: 12, color: '#666' }}>{deck.slides.length} slides</div>
 
-                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {deck.slides.slice(0, 10).map((s) => (
-                    <div key={s.id} style={{ padding: 10, borderRadius: 10, border: '1px solid #eee', background: '#fff' }}>
-                      <div style={{ fontWeight: 700, fontSize: 13 }}>{s.order + 1}. {s.title}</div>
-                      <div style={{ fontSize: 12, color: '#666' }}>{s.slideType} · {s.layout}</div>
-                      {s.bullets?.length ? (
-                        <ul style={{ margin: '6px 0 0', paddingLeft: 16, fontSize: 12 }}>
-                          {s.bullets.slice(0, 4).map((b, i) => (
-                            <li key={i}>{b}</li>
-                          ))}
-                        </ul>
-                      ) : null}
+                    <div key={s.id} style={{ padding: 10, borderRadius: 12, border: '1px solid #eee', background: '#fff' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>{s.order + 1}. {s.title}</div>
+                        <div style={{ fontSize: 11, color: '#666' }}>{s.slideType}</div>
+                      </div>
+                      <div style={{ marginTop: 8 }}>
+                        <SlideThumb slide={s as any} widthPx={260} />
+                      </div>
                     </div>
                   ))}
                 </div>
