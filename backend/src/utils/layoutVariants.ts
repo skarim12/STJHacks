@@ -29,6 +29,39 @@ export type LayoutVariant = {
   boxes: LayoutBox[];
 };
 
+export type VariantFamily =
+  | "single"
+  | "accent"
+  | "columns"
+  | "stack"
+  | "grid"
+  | "asym"
+  | "callout"
+  | "splitImage"
+  | "image"
+  | "quote"
+  | "comparison"
+  | "title";
+
+export function variantFamily(name: string): VariantFamily {
+  const n = String(name || "");
+  if (n.startsWith("title.")) return "title";
+  if (n.startsWith("quote.")) return "quote";
+  if (n.startsWith("comparison.")) return "comparison";
+  if (n.startsWith("image.")) return "image";
+
+  if (n === "content.singleCard") return "single";
+  if (n === "content.leftAccentBar") return "accent";
+  if (n === "content.twoColBullets") return "columns";
+  if (n === "content.twoStackCards" || n === "content.accentTwoStack") return "stack";
+  if (n === "content.fourCardsGrid") return "grid";
+  if (n === "content.threeCards" || n === "content.accentThreeCards") return "grid";
+  if (n === "content.asymTwoCards" || n === "content.leftStackRightCard") return "asym";
+  if (n === "content.calloutRight") return "callout";
+  if (n === "content.splitRightHero" || n === "content.splitLeftHero") return "splitImage";
+  return "single";
+}
+
 // 12x8 grid inside the safe area
 export const LAYOUT_VARIANTS: LayoutVariant[] = [
   // CONTENT

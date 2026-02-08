@@ -80,7 +80,25 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     return { x: x + pad, y: y + pad, w: Math.max(0.2, w - 2 * pad), h: Math.max(0.2, h - 2 * pad) };
   };
 
-  const addCard = (slide: any, box: { x: number; y: number; w: number; h: number }, opts?: { fillHex?: string; transparency?: number; strokeHex?: string }) => {
+  const hexToRgb = (h: string) => {
+    const m = String(h).replace(/^#/, "").match(/^([0-9a-f]{6})$/i);
+    if (!m) return { r: 0, g: 0, b: 0 };
+    const x = m[1];
+    return { r: parseInt(x.slice(0, 2), 16), g: parseInt(x.slice(2, 4), 16), b: parseInt(x.slice(4, 6), 16) };
+  };
+  const mix = (a: string, b: string, t: number) => {
+    const A = hexToRgb(a);
+    const B = hexToRgb(b);
+    const m = (x: number, y: number) => Math.round(x * (1 - t) + y * t);
+    return `#${m(A.r, B.r).toString(16).padStart(2, "0")}${m(A.g, B.g).toString(16).padStart(2, "0")}${m(A.b, B.b).toString(16).padStart(2, "0")}`;
+  };
+  const tint = (baseHex: string, amount: number) => mix(baseHex, "#ffffff", Math.max(0, Math.min(1, amount)));
+
+  const addCard = (
+    slide: any,
+    box: { x: number; y: number; w: number; h: number },
+    opts?: { fillHex?: string; transparency?: number; strokeHex?: string }
+  ) => {
     const fillHex = opts?.fillHex || panelFill;
     const transparency = typeof opts?.transparency === "number" ? opts.transparency : panelTransparency;
     const strokeHex = opts?.strokeHex || pptxColor(accent);
@@ -92,7 +110,8 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       h: box.h,
       fill: { color: fillHex, transparency },
       line: { color: strokeHex, transparency: 92 },
-      radius: panelRadius,
+      // Note: pptxgenjs typing may not expose radius; keep roundRect without explicit radius.
+
     });
   };
 
@@ -230,19 +249,53 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       }
 
       if (kind === "header") {
-        slide.addText(String(s?.title || ""), {
+        const headerH = Math.min(box.h, 1.1);
+        const kicker = String(s?.slideType || "").toLowerCase() === "comparison"
+          ? "COMPARISON"
+          : String(s?.slideType || "").toLowerCase() === "quote"
+            ? "QUOTE"
+            : String(s?.slideType || "").toLowerCase() === "imageplaceholder"
+              ? "VISUAL"
+              : "KEY POINTS";
+
+        // Kicker pill (adds immediate visual variety)
+        const pillW = Math.min(3.0, box.w * 0.45);
+        const pillFill = pptxColor(tint(accent, 0.0));
+        slide.addShape(pptx.ShapeType.roundRect, {
           x: box.x,
           y: box.y,
+          w: pillW,
+          h: 0.32,
+          fill: { color: pillFill, transparency: 10 },
+          line: { color: pillFill, transparency: 100 },
+          // radius not supported in typings
+
+        });
+        slide.addText(kicker, {
+          x: box.x + 0.12,
+          y: box.y + 0.05,
+          w: pillW - 0.24,
+          h: 0.26,
+          fontFace: "Segoe UI",
+          fontSize: 12,
+          bold: true,
+          color: "FFFFFF",
+        });
+
+        slide.addText(String(s?.title || ""), {
+          x: box.x,
+          y: box.y + 0.36,
           w: box.w,
-          h: Math.min(box.h, 1.0),
+          h: headerH - 0.36,
           fontFace: titleFontFace,
           fontSize: Number.isFinite(titleFontSize) ? Math.max(18, Math.min(48, Math.round(titleFontSize * 0.48))) : 30,
           bold: String(titlePlan?.weight || "bold") === "bold",
           color: pptxColor(titleColor),
         });
+
         slide.addShape(pptx.ShapeType.rect, {
           x: box.x,
-          y: box.y + Math.min(box.h, 1.0) - 0.06,
+          y: box.y + headerH - 0.06,
           w: Math.min(5.5, box.w),
           h: 0.05,
           fill: { color: pptxColor(accent) },

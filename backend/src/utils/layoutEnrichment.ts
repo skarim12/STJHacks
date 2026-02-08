@@ -1,5 +1,5 @@
 import type { Outline } from "./deckHtml";
-import { allowedVariantsForSlideType, getVariantByName } from "./layoutVariants";
+import { allowedVariantsForSlideType, getVariantByName, variantFamily } from "./layoutVariants";
 
 export type LayoutPlan = { variant: string };
 
@@ -119,24 +119,40 @@ export async function enrichOutlineWithLayouts(outline: any, opts: LayoutEnrichm
   // Track usage to reduce template-y repetition (still deterministic).
   const recent: string[] = [];
   const counts: Record<string, number> = {};
+  const recentFamilies: string[] = [];
 
   const avoidWindow = 2; // avoid repeating the same variant within the last N slides
   const maxPerVariant = 3; // soft cap
+  const maxSameFamilyInRow = 2;
 
   const pushRecent = (v: string) => {
     recent.push(v);
     while (recent.length > 6) recent.shift();
     counts[v] = (counts[v] || 0) + 1;
+
+    const fam = variantFamily(v);
+    recentFamilies.push(fam);
+    while (recentFamilies.length > 6) recentFamilies.shift();
   };
 
   const seenRecently = (v: string) => recent.slice(-avoidWindow).includes(v);
+  const familyRun = () => {
+    const last = recentFamilies[recentFamilies.length - 1];
+    if (!last) return { fam: "", run: 0 };
+    let r = 0;
+    for (let i = recentFamilies.length - 1; i >= 0; i--) {
+      if (recentFamilies[i] === last) r++;
+      else break;
+    }
+    return { fam: last, run: r };
+  };
 
-  const pickAltVariant = (slideType: string, stats: any, preferred: string, variants: any[]): string => {
+  const pickAltVariant = (stats: any, preferred: string, variants: any[]): string => {
     // Prefer: not recently used, under cap, and composition-changing variants first.
     const ordered = [
       "content.fourCardsGrid",
-      "content.threeCards",
       "content.leftStackRightCard",
+      "content.threeCards",
       "content.twoStackCards",
       "content.asymTwoCards",
       "content.calloutRight",
@@ -153,22 +169,22 @@ export async function enrichOutlineWithLayouts(outline: any, opts: LayoutEnrichm
     // Guard: very heavy content can't go into multi-card variants.
     const heavy = stats.count >= 8 || stats.totalLen >= 620 || stats.maxLen >= 150;
     const filtered = candidates.filter((n) => {
-      if (heavy && (n === "content.threeCards" || n === "content.twoStackCards" || n === "content.asymTwoCards")) return false;
+      if (heavy && (n === "content.threeCards" || n === "content.twoStackCards" || n === "content.asymTwoCards" || n === "content.fourCardsGrid")) return false;
       return true;
     });
 
     const pool = filtered.length ? filtered : allowedNames;
 
-    // Deterministic tie-breaker: hash of (deckTitle + slideIndex) will be used by caller; here we just
-    // pick the first acceptable candidate.
+    const run = familyRun();
+
     for (const n of pool) {
       if (n === preferred) continue;
       if (seenRecently(n)) continue;
       if ((counts[n] || 0) >= maxPerVariant) continue;
+      if (run.run >= maxSameFamilyInRow && variantFamily(n) === run.fam) continue;
       return n;
     }
 
-    // If no good alt, keep preferred.
     return preferred;
   };
 
@@ -243,11 +259,15 @@ ${(Array.isArray(s.content) ? s.content : []).slice(0, 4).map((b: any) => `- ${S
       else fullBleedUsed++;
     }
 
-    // Deterministic anti-repetition: if chosen repeats too much, pick an alternate.
+    // Deterministic anti-repetition: if chosen repeats too much (or family cadence is too monotone), pick an alternate.
     if (slideType === "content") {
       const heavy = stats.count >= 8 || stats.totalLen >= 620 || stats.maxLen >= 150;
-      if (!heavy && (seenRecently(chosen) || (counts[chosen] || 0) >= maxPerVariant)) {
-        chosen = pickAltVariant(slideType, stats, chosen, variants);
+      if (!heavy) {
+        const run = familyRun();
+        const tooSame = seenRecently(chosen) || (counts[chosen] || 0) >= maxPerVariant || (run.run >= maxSameFamilyInRow && variantFamily(chosen) === run.fam);
+        if (tooSame) {
+          chosen = pickAltVariant(stats, chosen, variants);
+        }
       }
     }
 
