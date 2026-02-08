@@ -127,16 +127,43 @@ deckExtrasRouter.post('/:deckId/repair', async (req, res) => {
     warnings.push(`Repair: speaker notes step failed: ${e?.message ?? String(e)}`);
   }
 
-  // 3) Ensure layoutPlan exists (best-effort)
+  // 3) Ensure layoutPlan exists and is QA-safe (best-effort)
   try {
-    const needsLayout = (working.slides ?? []).some((s: any) => !(s as any).layoutPlan?.boxes?.length);
-    if (needsLayout) {
-      const { LayoutPlanAgent } = await import('../agents/layoutPlanAgent.js');
-      const out = await LayoutPlanAgent.run(working);
-      warnings.push(...(out.warnings ?? []));
-      for (const s of working.slides) {
-        const p = out.bySlideId?.[s.id];
-        if (p) (s as any).layoutPlan = p;
+    const { buildFallbackLayoutPlan } = await import('../services/layoutTemplates.js');
+
+    // If a slide has no plan at all, create a conservative deterministic one.
+    for (const s of working.slides ?? []) {
+      if (!(s as any).layoutPlan?.boxes?.length) {
+        (s as any).layoutPlan = buildFallbackLayoutPlan({ deck: working, slide: s });
+        warnings.push(`Repair: applied fallback layoutPlan for slide "${String(s.title || '').slice(0, 60)}" (missing plan).`);
+      }
+    }
+
+    // If QA detects layout failures, replan only the failing slides using fallback templates.
+    const afterPlanQa = runDeckQa(working);
+    const failingSlideIds = new Set(
+      (afterPlanQa.issues ?? [])
+        .filter((i: any) => i.level === 'fail' && i.slideId)
+        .map((i: any) => String(i.slideId))
+    );
+
+    if (failingSlideIds.size) {
+      for (const s of working.slides ?? []) {
+        if (!failingSlideIds.has(String(s.id))) continue;
+        (s as any).layoutPlan = buildFallbackLayoutPlan({ deck: working, slide: s });
+        warnings.push(`Repair: replaced layoutPlan with fallback template for slide "${String(s.title || '').slice(0, 60)}" (QA fail).`);
+      }
+    } else {
+      // Otherwise, keep existing plan; optionally regenerate via agent if many slides lack plan.
+      const needsLayout = (working.slides ?? []).some((s: any) => !(s as any).layoutPlan?.boxes?.length);
+      if (needsLayout) {
+        const { LayoutPlanAgent } = await import('../agents/layoutPlanAgent.js');
+        const out = await LayoutPlanAgent.run(working);
+        warnings.push(...(out.warnings ?? []));
+        for (const s of working.slides) {
+          const p = out.bySlideId?.[s.id];
+          if (p) (s as any).layoutPlan = p;
+        }
       }
     }
   } catch (e: any) {
