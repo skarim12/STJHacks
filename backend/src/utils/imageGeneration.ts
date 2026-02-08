@@ -65,7 +65,11 @@ export async function generateSlideImageOpenAI(opts: {
   // Size options are limited; use 1536x1024 (landscape-ish) then crop via CSS object-fit.
   const styleHint = opts.style === "photo" ? "photo-real" : "clean vector illustration";
 
-  const fullPrompt = `${prompt}\n\nStyle: ${styleHint}. High contrast. No text in the image. 16:9 friendly composition.`;
+  const fullPrompt = `${prompt}
+
+Style: ${styleHint}. High contrast. No text, logos, or watermarks.
+Composition: single clear subject, not a collage. 16:9-friendly framing.
+Avoid: generic "stock photo" look; avoid unrelated symbols.`;
 
   const retries = Number(process.env.OPENAI_IMAGE_RETRIES || 3);
   const timeoutMs = Number(process.env.OPENAI_IMAGE_TIMEOUT_MS || 120_000);

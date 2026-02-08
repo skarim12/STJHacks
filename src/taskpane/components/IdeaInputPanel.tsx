@@ -158,7 +158,7 @@ export const IdeaInputPanel: React.FC = () => {
           }
         >
           {lastEnrichment?.imagesAdded > 0
-            ? `Image enrichment: added ${lastEnrichment.imagesAdded} images.`
+            ? `Image enrichment: added ${lastEnrichment.imagesAdded} images (before ${lastEnrichment.imagesBefore}, after ${lastEnrichment.imagesAfter}).`
             : `Image enrichment: added 0 images. First error: ${String(
                 lastEnrichment?.perSlide?.find((p: any) => p?.error)?.error || "(none)"
               ).slice(0, 240)}`}

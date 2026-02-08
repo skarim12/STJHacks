@@ -14,6 +14,8 @@ export type ImageEnrichmentOptions = {
 
 export type EnrichmentReport = {
   imagesAdded: number;
+  imagesBefore: number;
+  imagesAfter: number;
   attempted: number;
   skipped: { title: number; alreadyHasImage: number; notSelected: number; noQuery: number };
   opts: { allowExternalImages: boolean; allowGeneratedImages: boolean; imageStyle: string; maxDeckImages: number };
@@ -36,8 +38,12 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
   const slides: any[] = Array.isArray(outline?.slides) ? outline.slides : [];
 
   let used = 0;
+  const imagesBefore = slides.filter((s) => typeof (s as any)?.imageDataUri === "string" && String((s as any).imageDataUri).startsWith("data:image/")).length;
+
   const report: EnrichmentReport = {
     imagesAdded: 0,
+    imagesBefore,
+    imagesAfter: imagesBefore,
     attempted: 0,
     skipped: { title: 0, alreadyHasImage: 0, notSelected: 0, noQuery: 0 },
     opts: { allowExternalImages, allowGeneratedImages, imageStyle, maxDeckImages },
@@ -68,12 +74,14 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
       // Keep maxDeckImages as the controlling cap.
       report.attempted++;
 
+      const bulletsArr = Array.isArray(s?.content) ? s.content : [];
+
       const query = buildDefaultImageQuery({
         deckTitle: outline?.title,
         deckDescribe: outline?.describe,
         slideTitle: s?.title,
         slideDescribe: s?.describe,
-        bullets: Array.isArray(s?.content) ? s.content : [],
+        bullets: bulletsArr,
       });
       if (!query) {
         report.skipped.noQuery++;
@@ -93,6 +101,7 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             s.imageSourcePage = img.sourcePage;
             used++;
             report.imagesAdded++;
+            report.imagesAfter = report.imagesBefore + report.imagesAdded;
             report.perSlide.push({ index: i, slideType, query, source: "wikimedia" });
             continue;
           }
@@ -110,6 +119,7 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             s.imageSourcePage = img2.sourcePage;
             used++;
             report.imagesAdded++;
+            report.imagesAfter = report.imagesBefore + report.imagesAdded;
             report.perSlide.push({ index: i, slideType, query, source: "wikipedia" });
             continue;
           }
@@ -121,15 +131,26 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
 
       // 2) AI image generation fallback
       if (allowGeneratedImages) {
+        // Use a more slide-specific prompt than the Wikimedia query.
+        const genPromptParts = [
+          `Deck: ${String(outline?.title || "").trim()}`,
+          `Slide: ${String(s?.title || "").trim()}`,
+          String(s?.describe || "").trim() ? `Context: ${String(s?.describe).trim()}` : "",
+          bulletsArr.length ? `Key points: ${bulletsArr.slice(0, 4).join("; ")}` : "",
+        ].filter(Boolean);
+
+        const genPrompt = genPromptParts.join("\n");
+
         try {
-          const gen = await generateSlideImageOpenAI({ prompt: query, style: imageStyle });
+          const gen = await generateSlideImageOpenAI({ prompt: genPrompt, style: imageStyle });
           if (gen?.dataUri) {
             s.imageDataUri = gen.dataUri;
             s.imageCredit = `AI-generated (${imageStyle})`;
             s.imageSourcePage = "";
             used++;
             report.imagesAdded++;
-            report.perSlide.push({ index: i, slideType, query, source: "openai" });
+            report.imagesAfter = report.imagesBefore + report.imagesAdded;
+            report.perSlide.push({ index: i, slideType, query: genPrompt, source: "openai" });
             continue;
           }
           errors.push("openai: no result");
