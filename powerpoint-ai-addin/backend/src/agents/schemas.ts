@@ -61,6 +61,15 @@ export const VisualIntentZ = z
     }
   });
 
+export const SelectedAssetZ = z.object({
+  kind: z.enum(['photo', 'icon', 'svg', 'chart']),
+  dataUri: z.string().optional(),
+  sourceUrl: z.string().optional(),
+  attribution: z.string().optional(),
+  license: z.string().optional(),
+  altText: z.string()
+});
+
 export const SlideZ = z.object({
   id: z.string(),
   order: z.number().int().nonnegative(),
@@ -72,6 +81,7 @@ export const SlideZ = z.object({
   bodyText: z.string().optional(),
   speakerNotes: z.string().optional(),
   imagePlaceholders: z.array(ImagePlaceholderZ).optional(),
+  selectedAssets: z.array(SelectedAssetZ).optional(),
   leftColumn: z
     .object({ heading: z.string().optional(), bullets: z.array(z.string()).optional() })
     .optional(),

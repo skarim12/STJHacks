@@ -6,6 +6,8 @@ import { AssetAgent } from '../agents/assetAgent.js';
 import { RenderPlanAgent } from '../agents/renderPlanAgent.js';
 import { DeckSchemaZ } from '../agents/schemas.js';
 import { runAgent } from '../agents/runAgent.js';
+import { pickBestPhoto, searchPexelsPhotos } from './pexels.js';
+import { fetchImageAsDataUri } from './assetFetch.js';
 
 const DEFAULT_THEME: ThemeTokens = {
   primaryColor: '220 70% 50%',
@@ -35,9 +37,48 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
     VisualIntentAgent.attachPlaceholder(s);
   }
 
-  // 3) Assets (diagrams/charts now; stock photos/icons selected via UI)
+  // 3) Assets (diagrams/charts now; stock photos/icons can be auto-selected)
   const assetOut = AssetAgent.run(slides);
   warnings.push(...assetOut.warnings);
+
+  // Phase C: auto-select stock photos for slides that want them (stock preferred)
+  // Keep API usage bounded for demos.
+  const MAX_AUTO_PHOTOS = 3;
+  let autoCount = 0;
+
+  for (const s of slides) {
+    if (autoCount >= MAX_AUTO_PHOTOS) break;
+    if (s.visualIntent?.visualType !== 'photo') continue;
+
+    const query = (s.visualIntent.queryTerms?.join(' ') || `${outline.title} ${s.title}`).trim();
+
+    try {
+      const results = await searchPexelsPhotos(query, 6);
+      const best = pickBestPhoto(results);
+      if (!best) {
+        warnings.push(`No stock photo results for slide "${s.title}" (query: ${query}).`);
+        continue;
+      }
+
+      const fetched = await fetchImageAsDataUri(best.downloadUrl);
+
+      s.selectedAssets = [
+        ...(s.selectedAssets ?? []).filter((a) => a.kind !== 'photo'),
+        {
+          kind: 'photo',
+          dataUri: fetched.dataUri,
+          sourceUrl: best.sourceUrl ?? best.downloadUrl,
+          attribution: best.attribution,
+          license: best.license,
+          altText: best.altText
+        }
+      ];
+
+      autoCount++;
+    } catch (e: any) {
+      warnings.push(`Auto photo select failed for slide "${s.title}": ${e?.message ?? String(e)}`);
+    }
+  }
 
   // 4) Render plan
   const renderPlan = RenderPlanAgent.run(slides);

@@ -28,6 +28,15 @@ export interface ThemeTokens {
   fontSize: 'small' | 'medium' | 'large';
 }
 
+export interface SelectedAsset {
+  kind: 'photo' | 'icon' | 'svg' | 'chart';
+  dataUri?: string;
+  sourceUrl?: string;
+  attribution?: string;
+  license?: string;
+  altText: string;
+}
+
 export interface Slide {
   id: string;
   order: number;
@@ -39,6 +48,9 @@ export interface Slide {
   bodyText?: string;
   speakerNotes?: string;
   imagePlaceholders?: ImagePlaceholder[];
+
+  /** Resolved/selected visuals to use when rendering. */
+  selectedAssets?: SelectedAsset[];
 
   leftColumn?: { heading?: string; bullets?: string[] };
   rightColumn?: { heading?: string; bullets?: string[] };

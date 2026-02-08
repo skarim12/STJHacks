@@ -117,7 +117,7 @@ const useStyles = makeStyles({
 export function IdeaInputPanel() {
   const styles = useStyles();
   const [idea, setIdea] = useState('');
-  const [tab, setTab] = useState<'generate' | 'slides'>('generate');
+  const [tab, setTab] = useState<'generate' | 'slides' | 'theme' | 'export'>('generate');
   const {
     status,
     error,
@@ -127,6 +127,7 @@ export function IdeaInputPanel() {
     selectPhotoForSlide,
     photoResultsBySlideId,
     aiEditSlide,
+    updateTheme,
     insertCurrentDeck
   } = useStore();
 
@@ -167,6 +168,12 @@ export function IdeaInputPanel() {
         <Tab value="generate">Generate</Tab>
         <Tab value="slides" disabled={!deck}>
           Slides
+        </Tab>
+        <Tab value="theme" disabled={!deck}>
+          Theme
+        </Tab>
+        <Tab value="export" disabled={!deck}>
+          Export
         </Tab>
       </TabList>
 
@@ -296,8 +303,73 @@ export function IdeaInputPanel() {
           ))}
 
           {error ? <div className={styles.error}>{error}</div> : null}
-        </div>
-      ) : null}
-    </div>
-  );
+        </div> 
+      ) : tab === 'theme' ? (
+        <Card className={styles.contentCard}>
+          <CardHeader
+            header={<Subtitle2>Theme</Subtitle2>}
+            description={<Caption1>Adjust colors and fonts for the deck.</Caption1>}
+          />
+          <div className={styles.cardBody}>
+            <Field label="Primary color (HSL triplet)" hint='Example: "220 70% 50%"'>
+              <Input
+                value={deck.theme.primaryColor}
+                onChange={(_, data) => updateTheme({ primaryColor: data.value })}
+              />
+            </Field>
+            <Field label="Accent color (HSL triplet)">
+              <Input value={deck.theme.accentColor} onChange={(_, data) => updateTheme({ accentColor: data.value })} />
+            </Field>
+            <Field label="Background color (HSL triplet)">
+              <Input
+                value={deck.theme.backgroundColor}
+                onChange={(_, data) => updateTheme({ backgroundColor: data.value })}
+              />
+            </Field>
+            <Field label="Heading font">
+              <Input value={deck.theme.fontHeading} onChange={(_, data) => updateTheme({ fontHeading: data.value })} />
+            </Field>
+            <Field label="Body font">
+              <Input value={deck.theme.fontBody} onChange={(_, data) => updateTheme({ fontBody: data.value })} />
+            </Field>
+          </div>
+        </Card>
+      ) : tab === 'export' ? (
+        <Card className={styles.contentCard}>
+          <CardHeader
+            header={<Subtitle2>Export</Subtitle2>}
+            description={<Caption1>Download the full deck JSON (includes selected assets + attributions).</Caption1>}
+          />
+          <div className={styles.cardBody}>
+            <Button
+              appearance="primary"
+              onClick={() => {
+                const blob = new Blob([JSON.stringify(deck, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${deck.title.replace(/[^a-z0-9]/gi, '_')}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              Download deck JSON
+            </Button>
+
+            <div style={{ marginTop: 12 }}>
+              <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>Attribution (selected photos)</Caption1>
+              <ul>
+                {deck.slides
+                  .flatMap((s) => s.selectedAssets ?? [])
+                  .filter((a) => a.kind === 'photo')
+                  .map((a, i) => (
+                    <li key={i}>{a.attribution ?? a.sourceUrl ?? 'Photo'}</li>
+                  ))}
+              </ul>
+            </div>
+          </div>
+        </Card>
+      ) : null} 
+    </div> 
+  ); 
 }

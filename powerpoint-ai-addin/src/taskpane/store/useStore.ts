@@ -43,6 +43,7 @@ type Store = {
   selectPhotoForSlide: (slideId: string, r: PhotoSearchResult) => Promise<void>;
 
   aiEditSlide: (slideId: string, instruction: string) => Promise<void>;
+  updateTheme: (patch: Partial<DeckSchema['theme']>) => void;
 
   insertCurrentDeck: () => Promise<void>;
 };
@@ -161,6 +162,20 @@ export const useStore = create<Store>((set, get) => ({
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });
     }
+  },
+
+  updateTheme: (patch) => {
+    set((s) => {
+      if (!s.deck) return s as any;
+      return {
+        ...s,
+        deck: {
+          ...s.deck,
+          theme: { ...s.deck.theme, ...patch },
+          metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
+        }
+      };
+    });
   },
 
   insertCurrentDeck: async () => {
