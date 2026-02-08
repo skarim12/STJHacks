@@ -113,48 +113,132 @@ class OfficePowerPointService implements IPowerPointService {
   }
 
   async insertSlide(slide: Slide): Promise<{ success: boolean; slideIndex: number }> {
-    // Minimal insertion (Phase 1): title + bullets/body + optional selected photo asset.
+    // Insertion using optional AI-generated raw layoutPlan.
+    // If layoutPlan is missing, fall back to a simple deterministic layout.
     const PP = (globalThis as any).PowerPoint;
     if (!PP?.run) throw new Error('PowerPoint global is not available (not running inside Office).');
+
+    const plan = (slide as any).layoutPlan as any | undefined;
+
+    // Helpers: PPT points -> Office.js uses points.
+    // PptxGen uses inches; Office.js positions are in points.
+    const INCH_TO_PT = 72;
+    const toPt = (v: number) => Math.round(v * INCH_TO_PT);
+
+    // Very simple auto-fit: reduce font size if text is likely too long for the box.
+    const autoFitFont = (text: string, boxWIn: number, boxHIn: number, base: number) => {
+      const w = Math.max(0.1, boxWIn);
+      const h = Math.max(0.1, boxHIn);
+      const area = w * h;
+      const len = text.length;
+      // heuristic: more characters => smaller font
+      const density = len / Math.max(0.1, area);
+      const shrink = density > 180 ? 0.55 : density > 130 ? 0.7 : density > 95 ? 0.82 : 1;
+      return Math.max(10, Math.min(44, Math.round(base * shrink)));
+    };
 
     return await PP.run(async (context: any) => {
       const slides = context.presentation.slides;
       const created = slides.add();
       const shapes = created.shapes;
 
-      // If a selected photo exists, place it on the right side.
       const photoDataUri = slide.selectedAssets?.find((a) => a.kind === 'photo' && a.dataUri)?.dataUri;
-      if (photoDataUri) {
-        // Office.js addImage expects base64 without the data: prefix.
-        const base64 = photoDataUri.includes(',') ? photoDataUri.split(',')[1] : photoDataUri;
-        const img = shapes.addImage(base64);
-        img.left = 380;
-        img.top = 110;
-        img.width = 290;
-        img.height = 290;
-      }
+      const photoBase64 = photoDataUri ? (photoDataUri.includes(',') ? photoDataUri.split(',')[1] : photoDataUri) : null;
 
-      const title = shapes.addTextBox(slide.title || '');
-      title.left = 50;
-      title.top = 30;
-      title.width = 620;
-      title.height = 50;
+      const addImageBestEffort = (left: number, top: number, width: number, height: number) => {
+        if (!photoDataUri && !photoBase64) return;
+        try {
+          // Most PowerPoint APIs expect raw base64 (no data: prefix)
+          if (photoBase64) {
+            const img = shapes.addImage(photoBase64);
+            img.left = left;
+            img.top = top;
+            img.width = width;
+            img.height = height;
+            return;
+          }
+        } catch (e) {
+          // fall through
+        }
 
-      const bodyLines = slide.bullets?.length
-        ? slide.bullets.map((b) => `• ${b}`)
-        : slide.bodyText
-          ? [slide.bodyText]
-          : [];
-      if (bodyLines.length) {
-        const body = shapes.addTextBox(bodyLines.join('\n'));
-        body.left = 50;
-        body.top = 110;
-        body.width = photoDataUri ? 300 : 620;
-        body.height = 360;
+        try {
+          // Some builds accept full data URIs.
+          if (photoDataUri) {
+            const img = shapes.addImage(photoDataUri);
+            img.left = left;
+            img.top = top;
+            img.width = width;
+            img.height = height;
+          }
+        } catch (e) {
+          // If both fail, we silently skip (but leave room for QA/warnings upstream).
+          console.warn('[PPT] addImage failed', e);
+        }
+      };
+
+      if (plan?.boxes?.length) {
+        for (const b of plan.boxes) {
+          const kind = String(b.kind || 'body');
+          const x = toPt(Number(b.x || 0));
+          const y = toPt(Number(b.y || 0));
+          const w = toPt(Number(b.w || 1));
+          const h = toPt(Number(b.h || 1));
+
+          if (kind === 'image') {
+            addImageBestEffort(x, y, w, h);
+            continue;
+          }
+
+          // Text content selection
+          let text = '';
+          if (kind === 'title') text = slide.title || '';
+          else if (kind === 'subtitle') text = slide.subtitle || '';
+          else if (kind === 'bullets') {
+            const lines = slide.bullets?.length ? slide.bullets.map((t) => `• ${t}`) : [];
+            text = lines.join('\n');
+          } else if (kind === 'body') {
+            text = slide.bodyText || '';
+          } else {
+            // shape/unknown -> ignore for now (Office.js shape styling is limited here)
+            continue;
+          }
+
+          if (!text.trim()) continue;
+
+          const tb = shapes.addTextBox(text);
+          tb.left = x;
+          tb.top = y;
+          tb.width = w;
+          tb.height = h;
+
+          // Basic styling
+          const baseSize = Number(b.fontSize || (kind === 'title' ? 34 : kind === 'subtitle' ? 18 : 16));
+          const fitted = autoFitFont(text, Number(b.w || 1), Number(b.h || 1), baseSize);
+          // PowerPoint JS API for font size is not always available on the TextBox object directly.
+          // Leave as-is for now; we still place boxes correctly.
+          // TODO: apply font size via textRange when Office.js supports it consistently.
+          void fitted;
+        }
+      } else {
+        // Fallback deterministic layout
+        addImageBestEffort(380, 110, 290, 290);
+        const title = shapes.addTextBox(slide.title || '');
+        title.left = 50;
+        title.top = 30;
+        title.width = 620;
+        title.height = 50;
+
+        const bodyLines = slide.bullets?.length ? slide.bullets.map((t) => `• ${t}`) : slide.bodyText ? [slide.bodyText] : [];
+        if (bodyLines.length) {
+          const body = shapes.addTextBox(bodyLines.join('\n'));
+          body.left = 50;
+          body.top = 110;
+          body.width = photoBase64 ? 300 : 620;
+          body.height = 360;
+        }
       }
 
       await context.sync();
-
       slides.load('count');
       await context.sync();
       return { success: true, slideIndex: Math.max(0, slides.count - 1) };
