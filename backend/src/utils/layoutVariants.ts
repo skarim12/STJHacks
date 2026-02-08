@@ -84,6 +84,48 @@ export const LAYOUT_VARIANTS: LayoutVariant[] = [
       { id: "body", kind: "bulletsCard", rect: { colStart: 6, colSpan: 7, rowStart: 3, rowSpan: 6 } },
     ],
   },
+  {
+    // Two stacked content cards + header. Great for variety without requiring images.
+    name: "content.twoStackCards",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "bodyTop", kind: "bulletsCard", rect: { colStart: 1, colSpan: 12, rowStart: 3, rowSpan: 3 } },
+      { id: "bodyBottom", kind: "bulletsCard", rect: { colStart: 1, colSpan: 12, rowStart: 6, rowSpan: 3 } },
+    ],
+  },
+  {
+    // Three-column cards. Works best with shorter bullets.
+    name: "content.threeCards",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "c1", kind: "bulletsCard", rect: { colStart: 1, colSpan: 4, rowStart: 3, rowSpan: 6 } },
+      { id: "c2", kind: "bulletsCard", rect: { colStart: 5, colSpan: 4, rowStart: 3, rowSpan: 6 } },
+      { id: "c3", kind: "bulletsCard", rect: { colStart: 9, colSpan: 4, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    // Asymmetric two cards (wide + narrow) gives a more editorial feel.
+    name: "content.asymTwoCards",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "main", kind: "bulletsCard", rect: { colStart: 1, colSpan: 8, rowStart: 3, rowSpan: 6 } },
+      { id: "side", kind: "bulletsCard", rect: { colStart: 9, colSpan: 4, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    // Accent bar + two stacked cards.
+    name: "content.accentTwoStack",
+    slideTypes: ["content"],
+    boxes: [
+      { id: "bar", kind: "accentBar", rect: { colStart: 1, colSpan: 1, rowStart: 1, rowSpan: 8 } },
+      { id: "header", kind: "header", rect: { colStart: 2, colSpan: 11, rowStart: 1, rowSpan: 2 } },
+      { id: "top", kind: "bulletsCard", rect: { colStart: 2, colSpan: 11, rowStart: 3, rowSpan: 3 } },
+      { id: "bottom", kind: "bulletsCard", rect: { colStart: 2, colSpan: 11, rowStart: 6, rowSpan: 3 } },
+    ],
+  },
 
   // IMAGE PLACEHOLDER (or IMAGE)
   {
@@ -122,6 +164,17 @@ export const LAYOUT_VARIANTS: LayoutVariant[] = [
     boxes: [
       { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
       { id: "left", kind: "comparisonLeft", rect: { colStart: 1, colSpan: 6, rowStart: 3, rowSpan: 6 } },
+      { id: "right", kind: "comparisonRight", rect: { colStart: 7, colSpan: 6, rowStart: 3, rowSpan: 6 } },
+    ],
+  },
+  {
+    // Comparison with a center divider accent bar.
+    name: "comparison.divided",
+    slideTypes: ["comparison"],
+    boxes: [
+      { id: "header", kind: "header", rect: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 2 } },
+      { id: "divider", kind: "accentBar", rect: { colStart: 6, colSpan: 1, rowStart: 3, rowSpan: 6 } },
+      { id: "left", kind: "comparisonLeft", rect: { colStart: 1, colSpan: 5, rowStart: 3, rowSpan: 6 } },
       { id: "right", kind: "comparisonRight", rect: { colStart: 7, colSpan: 6, rowStart: 3, rowSpan: 6 } },
     ],
   },

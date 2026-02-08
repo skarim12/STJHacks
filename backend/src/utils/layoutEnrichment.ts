@@ -47,11 +47,17 @@ function heuristicVariant(slideType: string, hasImage: boolean, bullets: { count
   // Statement layout when the slide is basically one big idea.
   if (veryShort && bullets.count <= 2) return "content.statement";
 
+  // Multi-card compositions for medium/short content.
+  if (veryShort && bullets.count >= 3) return "content.threeCards";
+
   // Two column bullets for medium density lists.
   if (hasEnoughForTwoCol) return "content.twoColBullets";
 
+  // Prefer asym/two-stack when content can be split.
+  if (moderate && bullets.count >= 4 && bullets.count <= 8 && bullets.totalLen <= 600) return "content.twoStackCards";
+  if (moderate && bullets.count <= 7 && bullets.totalLen <= 520) return "content.asymTwoCards";
+
   // Prefer a split layout for moderately light content so the slide has a dedicated image area.
-  // Even if an image isn't available yet, we'll fill it in a later pass.
   if (moderate && bullets.count <= 5 && bullets.totalLen <= 420 && bullets.maxLen < 110) return "content.splitRightHero";
 
   if (hasImage) {
@@ -105,6 +111,58 @@ function validateAndRepairVariant(opts: {
 export async function enrichOutlineWithLayouts(outline: any, opts: LayoutEnrichmentOptions) {
   const slides: any[] = Array.isArray(outline?.slides) ? outline.slides : [];
   const deckTitle = String(outline?.title || "").slice(0, 80);
+
+  // Track usage to reduce template-y repetition (still deterministic).
+  const recent: string[] = [];
+  const counts: Record<string, number> = {};
+
+  const avoidWindow = 2; // avoid repeating the same variant within the last N slides
+  const maxPerVariant = 3; // soft cap
+
+  const pushRecent = (v: string) => {
+    recent.push(v);
+    while (recent.length > 6) recent.shift();
+    counts[v] = (counts[v] || 0) + 1;
+  };
+
+  const seenRecently = (v: string) => recent.slice(-avoidWindow).includes(v);
+
+  const pickAltVariant = (slideType: string, stats: any, preferred: string, variants: any[]): string => {
+    // Prefer: not recently used, under cap, and composition-changing variants first.
+    const ordered = [
+      "content.threeCards",
+      "content.twoStackCards",
+      "content.asymTwoCards",
+      "content.accentTwoStack",
+      "content.twoColBullets",
+      "content.leftAccentBar",
+      "content.singleCard",
+    ];
+
+    const allowedNames = variants.map((v) => v.name);
+    const candidates = ordered.filter((n) => allowedNames.includes(n));
+
+    // Guard: very heavy content can't go into multi-card variants.
+    const heavy = stats.count >= 8 || stats.totalLen >= 620 || stats.maxLen >= 150;
+    const filtered = candidates.filter((n) => {
+      if (heavy && (n === "content.threeCards" || n === "content.twoStackCards" || n === "content.asymTwoCards")) return false;
+      return true;
+    });
+
+    const pool = filtered.length ? filtered : allowedNames;
+
+    // Deterministic tie-breaker: hash of (deckTitle + slideIndex) will be used by caller; here we just
+    // pick the first acceptable candidate.
+    for (const n of pool) {
+      if (n === preferred) continue;
+      if (seenRecently(n)) continue;
+      if ((counts[n] || 0) >= maxPerVariant) continue;
+      return n;
+    }
+
+    // If no good alt, keep preferred.
+    return preferred;
+  };
 
   // Always-on: every slide gets a layout plan.
   let fullBleedUsed = 0;
@@ -177,10 +235,19 @@ ${(Array.isArray(s.content) ? s.content : []).slice(0, 4).map((b: any) => `- ${S
       else fullBleedUsed++;
     }
 
+    // Deterministic anti-repetition: if chosen repeats too much, pick an alternate.
+    if (slideType === "content") {
+      const heavy = stats.count >= 8 || stats.totalLen >= 620 || stats.maxLen >= 150;
+      if (!heavy && (seenRecently(chosen) || (counts[chosen] || 0) >= maxPerVariant)) {
+        chosen = pickAltVariant(slideType, stats, chosen, variants);
+      }
+    }
+
     // Ensure repaired choice is still allowed; else drop to heuristic.
     if (!variants.some((vv) => vv.name === chosen)) chosen = fallback;
 
     s.layoutPlan = { variant: chosen } satisfies LayoutPlan;
+    pushRecent(chosen);
   }
 
   return outline as Outline;
