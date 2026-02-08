@@ -4,10 +4,11 @@ import { OutlineAgent } from '../agents/outlineAgent.js';
 import { VisualIntentAgent } from '../agents/visualIntentAgent.js';
 import { AssetAgent } from '../agents/assetAgent.js';
 import { RenderPlanAgent } from '../agents/renderPlanAgent.js';
-import { DeckSchemaZ } from '../agents/schemas.js';
+import { DeckSchemaZ, StylePresetZ } from '../agents/schemas.js';
 import { runAgent } from '../agents/runAgent.js';
 import { pickBestPhoto, searchPexelsPhotos } from './pexels.js';
 import { fetchImageAsDataUri } from './assetFetch.js';
+import { extractFirstJsonObject, generateStylePresetLLM } from './llm.js';
 
 const DEFAULT_THEME: ThemeTokens = {
   primaryColor: '220 70% 50%',
@@ -104,8 +105,8 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
     return { success: false, error: validated.error, warnings: ['Deck validation failed'] };
   }
 
-  // Style presets (deterministic for now)
-  const stylePresets = [
+  // Style presets (fallback + baseline)
+  const fallbackStylePresets = [
     {
       id: 'style-modern',
       name: 'Modern Blue',
@@ -166,7 +167,44 @@ export const generateDeckWithAgents = async (req: DeckGenerationRequest): Promis
     }
   ];
 
-  const recommendedStyleId = stylePresets[0].id;
+  // Always use an agent when possible: attempt LLM style generation.
+  const defaultDesignPrompt =
+    'Modern clean, high contrast, subtle gradients, minimal cards, hackathon demo aesthetic; ensure readability.';
+
+  let agentStylePreset: any | null = null;
+  try {
+    const { raw, provider } = await generateStylePresetLLM({
+      deckTitle: outline.title,
+      deckPrompt: req.prompt,
+      designPrompt: req.designPrompt?.trim() || defaultDesignPrompt,
+      tone: req.tone,
+      audience: req.targetAudience
+    });
+    const json = extractFirstJsonObject(raw);
+
+    // Normalize a bit to reduce schema failures
+    if (!json.id) json.id = `style-${newId('s')}`;
+    if (!json.name) json.name = 'AI Design';
+
+    const validatedStyle = await runAgent({ name: 'StyleAgent.inline', schema: StylePresetZ, run: async () => json });
+    if (validatedStyle.ok) {
+      agentStylePreset = validatedStyle.value;
+      (agentStylePreset as any).provider = provider;
+    } else {
+      warnings.push('StyleAgent failed validation; using fallback styles.');
+    }
+  } catch (e: any) {
+    warnings.push(`StyleAgent failed; using fallback styles: ${e?.message ?? String(e)}`);
+  }
+
+  const stylePresets = agentStylePreset ? [agentStylePreset, ...fallbackStylePresets] : fallbackStylePresets;
+  const recommendedStyleId = (agentStylePreset?.id ?? fallbackStylePresets[0].id) as string;
+
+  // Apply recommended theme immediately
+  const recPreset = stylePresets.find((s: any) => s.id === recommendedStyleId);
+  if (recPreset?.theme) {
+    deck.theme = { ...deck.theme, ...recPreset.theme };
+  }
 
   return {
     success: true,

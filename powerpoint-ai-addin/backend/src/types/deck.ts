@@ -82,6 +82,8 @@ export interface DeckSchema {
 
 export interface DeckGenerationRequest {
   prompt: string;
+  /** Optional design prompt; when omitted, the system picks a default style direction. */
+  designPrompt?: string;
   slideCount?: number;
   theme?: Partial<ThemeTokens>;
   includeSlideTypes?: SlideType[];

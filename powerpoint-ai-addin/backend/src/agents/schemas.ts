@@ -129,6 +129,7 @@ export const DeckSchemaZ = z.object({
 
 export const DeckGenerationRequestZ = z.object({
   prompt: z.string().min(1),
+  designPrompt: z.string().min(1).optional(),
   slideCount: z.number().int().min(1).max(30).optional(),
   theme: ThemeTokensZ.partial().optional(),
   includeSlideTypes: z.array(SlideTypeZ).optional(),
