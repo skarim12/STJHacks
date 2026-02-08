@@ -8,6 +8,8 @@ import {
   Dropdown,
   type IDropdownOption,
   Checkbox,
+  MessageBar,
+  MessageBarType,
 } from "@fluentui/react";
 import { useStore } from "../store/useStore";
 import type { UserPreferences } from "../types";
@@ -48,6 +50,8 @@ export const IdeaInputPanel: React.FC = () => {
     smartSelectTemplate,
     importedFileName,
     extractedText,
+    lastEnrichment,
+    setLastEnrichment,
   } = useStore();
 
   const [editMessage, setEditMessage] = useState("");
@@ -79,6 +83,7 @@ export const IdeaInputPanel: React.FC = () => {
   const handleGenerate = async () => {
     if (!debouncedIdea.trim()) return;
 
+    setLastEnrichment(null);
     await generateFromIdea(debouncedIdea, prefs);
 
     // If running inside PowerPoint, also insert slides.
@@ -145,6 +150,20 @@ export const IdeaInputPanel: React.FC = () => {
         disabled={!debouncedIdea || generating}
         iconProps={{ iconName: "Lightbulb" }}
       />
+
+      {lastEnrichment && (
+        <MessageBar
+          messageBarType={
+            lastEnrichment?.imagesAdded > 0 ? MessageBarType.success : MessageBarType.warning
+          }
+        >
+          {lastEnrichment?.imagesAdded > 0
+            ? `Image enrichment: added ${lastEnrichment.imagesAdded} images.`
+            : `Image enrichment: added 0 images. First error: ${String(
+                lastEnrichment?.perSlide?.find((p: any) => p?.error)?.error || "(none)"
+              ).slice(0, 240)}`}
+        </MessageBar>
+      )}
 
       <Stack tokens={{ childrenGap: 8 }}>
         <TextField

@@ -42,6 +42,9 @@ interface AppState {
   externalImagesEnabled: boolean;
   generatedImagesEnabled: boolean;
 
+  // Diagnostics from last finalize/deck render
+  lastEnrichment: any | null;
+
   // Optional deck-wide description hint (used for images/layout)
   deckDescribe: string;
 
@@ -57,6 +60,7 @@ interface AppState {
   setSelectedTemplate: (tpl: Template | null) => void;
   setExternalImagesEnabled: (enabled: boolean) => void;
   setGeneratedImagesEnabled: (enabled: boolean) => void;
+  setLastEnrichment: (enrichment: any | null) => void;
   setDeckDescribe: (describe: string) => void;
   setSlideDescribe: (index: number, describe: string) => void;
   setDeckLook: (look: "default" | "light" | "dark" | "bold") => void;
@@ -98,6 +102,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedTemplate: null,
   externalImagesEnabled: false,
   generatedImagesEnabled: false,
+  lastEnrichment: null,
   deckDescribe: "",
   deckLook: "default",
 
@@ -109,6 +114,7 @@ export const useStore = create<AppState>((set, get) => ({
   setSelectedTemplate: (tpl) => set({ selectedTemplate: tpl }),
   setExternalImagesEnabled: (enabled) => set({ externalImagesEnabled: enabled }),
   setGeneratedImagesEnabled: (enabled) => set({ generatedImagesEnabled: enabled }),
+  setLastEnrichment: (enrichment) => set({ lastEnrichment: enrichment }),
   setDeckDescribe: (describe) => {
     set({ deckDescribe: describe });
     const current = get().outline;
@@ -135,7 +141,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   generateFromIdea: async (idea: string, prefs?: UserPreferences) => {
-    set({ generating: true, error: null });
+    set({ generating: true, error: null, lastEnrichment: null });
     try {
       const outline = await get().aiService.generatePresentationOutline(idea, prefs);
       const deckDescribe = get().deckDescribe?.trim();
@@ -152,7 +158,7 @@ export const useStore = create<AppState>((set, get) => ({
       );
 
       const next = finalized?.outline || withDescribe;
-      set({ outline: next, slides: next.slides });
+      set({ outline: next, slides: next.slides, lastEnrichment: finalized?.enrichment || null });
     } catch (err: any) {
       set({ error: err?.message || "Failed to generate outline" });
     } finally {
