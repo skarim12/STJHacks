@@ -55,12 +55,18 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
   const secondary = hexOrDefault(scheme.secondary, "#A78BFA");
 
   const themeStyle = outline?.themeStyle || {};
-  const panelsKind = String(themeStyle?.panels || "glass");
+  const themePlan = (outline as any)?.themePlan || {};
+
+  const panelsKind = String((themePlan as any)?.panelStyle || (themeStyle as any)?.panels || "glass");
+  const headerStyle = String((themePlan as any)?.headerStyle || "bar").toLowerCase();
 
   // Panel "card" styling (PPT-friendly approximation of HTML cards).
   const panelFill = panelsKind === "flat" ? "FFFFFF" : pptxColor("#FFFFFF");
   const panelTransparency = panelsKind === "flat" ? 6 : 18; // glass -> more transparent
-  const panelRadius = 10;
+  const cornerRadius = (() => {
+    const r = Number((themePlan as any)?.cornerRadius);
+    return Number.isFinite(r) ? Math.max(0, Math.min(28, Math.round(r))) : 14;
+  })();
 
   const SLIDE_W = 13.33;
   const SLIDE_H = 7.5;
@@ -103,14 +109,16 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     const transparency = typeof opts?.transparency === "number" ? opts.transparency : panelTransparency;
     const strokeHex = opts?.strokeHex || pptxColor(accent);
 
-    slide.addShape(pptx.ShapeType.roundRect, {
+    const shapeType = cornerRadius <= 2 ? pptx.ShapeType.rect : pptx.ShapeType.roundRect;
+
+    slide.addShape(shapeType, {
       x: box.x,
       y: box.y,
       w: box.w,
       h: box.h,
       fill: { color: fillHex, transparency },
       line: { color: strokeHex, transparency: 92 },
-      // Note: pptxgenjs typing may not expose radius; keep roundRect without explicit radius.
+      // Note: pptxgenjs typing may not expose radius; we approximate by rect vs roundRect.
 
     });
   };
@@ -155,11 +163,19 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
 
   const addMotif = (slide: any, seed: string, themePrompt: string) => {
     // Deterministic PPT-friendly background motif behind content.
-    const motif = motifFromPrompt(themePrompt);
+    const planMotif = String((themePlan as any)?.motif || "").toLowerCase();
+    const motif = (["ribbons", "grid", "corners", "diagonal"] as const).includes(planMotif as any)
+      ? (planMotif as any)
+      : motifFromPrompt(themePrompt);
+
+    const intensity = String((themePlan as any)?.intensity || "medium").toLowerCase();
+    const intensityLevel = intensity === "low" ? 0 : intensity === "high" ? 2 : 1;
 
     // Use very subtle tints so content remains readable.
     const aTint = pptxColor(tint(accent, 0.90));
     const bTint = pptxColor(tint(secondary, 0.90));
+
+    const transBase = intensityLevel === 0 ? 87 : intensityLevel === 2 ? 75 : 81;
 
     if (motif === "grid") {
       // Dot grid using tiny squares (pptx has no dot primitive).
@@ -167,13 +183,14 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       for (let x = 0.9; x < SLIDE_W - 0.9; x += step) {
         for (let y = 0.8; y < SLIDE_H - 0.8; y += step) {
           const t = pick01(`${seed}|${x}|${y}`);
-          if (t > 0.18) continue; // sparse
+          const keepThreshold = intensityLevel === 0 ? 0.10 : intensityLevel === 2 ? 0.28 : 0.18;
+          if (t > keepThreshold) continue; // sparse/dense depending on intensity
           slide.addShape(pptx.ShapeType.rect, {
             x,
             y,
             w: 0.03,
             h: 0.03,
-            fill: { color: t > 0.09 ? aTint : bTint, transparency: 75 },
+            fill: { color: t > 0.09 ? aTint : bTint, transparency: transBase },
             line: { color: "FFFFFF", transparency: 100 },
           });
         }
@@ -188,7 +205,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
         y: 0.3,
         w: 2.4,
         h: 0.22,
-        fill: { color: aTint, transparency: 78 },
+        fill: { color: aTint, transparency: transBase + 2 },
         line: { color: aTint, transparency: 100 },
       });
       slide.addShape(pptx.ShapeType.roundRect, {
@@ -196,7 +213,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
         y: 0.3,
         w: 0.22,
         h: 1.6,
-        fill: { color: bTint, transparency: 78 },
+        fill: { color: bTint, transparency: transBase + 2 },
         line: { color: bTint, transparency: 100 },
       });
       slide.addShape(pptx.ShapeType.roundRect, {
@@ -204,7 +221,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
         y: SLIDE_H - 0.55,
         w: 2.4,
         h: 0.22,
-        fill: { color: bTint, transparency: 80 },
+        fill: { color: bTint, transparency: transBase + 4 },
         line: { color: bTint, transparency: 100 },
       });
       slide.addShape(pptx.ShapeType.roundRect, {
@@ -212,7 +229,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
         y: SLIDE_H - 2.1,
         w: 0.22,
         h: 1.6,
-        fill: { color: aTint, transparency: 80 },
+        fill: { color: aTint, transparency: transBase + 4 },
         line: { color: aTint, transparency: 100 },
       });
       return;
@@ -225,7 +242,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
         y: 0.9,
         w: 7.0,
         h: 0.55,
-        fill: { color: aTint, transparency: 80 },
+        fill: { color: aTint, transparency: transBase + 4 },
         line: { color: aTint, transparency: 100 },
       });
       slide.addShape(pptx.ShapeType.parallelogram, {
@@ -233,7 +250,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
         y: 5.9,
         w: 7.0,
         h: 0.55,
-        fill: { color: bTint, transparency: 82 },
+        fill: { color: bTint, transparency: transBase + 6 },
         line: { color: bTint, transparency: 100 },
       });
       return;
@@ -245,7 +262,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       y: 1.0,
       w: 4.6,
       h: 0.42,
-      fill: { color: aTint, transparency: 80 },
+      fill: { color: aTint, transparency: transBase + 4 },
       line: { color: aTint, transparency: 100 },
     });
     slide.addShape(pptx.ShapeType.roundRect, {
@@ -253,7 +270,7 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
       y: SLIDE_H - 1.35,
       w: 4.6,
       h: 0.42,
-      fill: { color: bTint, transparency: 82 },
+      fill: { color: bTint, transparency: transBase + 6 },
       line: { color: bTint, transparency: 100 },
     });
   };
@@ -310,14 +327,16 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
     addBg(slide);
     addMotif(slide, `title:${String(outline?.title || "")}`, String((outline as any)?.themePrompt || ""));
 
-    slide.addShape(pptx.ShapeType.rect, {
-      x: 0,
-      y: 0,
-      w: SLIDE_W,
-      h: 0.18,
-      fill: { color: pptxColor(accent) },
-      line: { color: pptxColor(accent) },
-    });
+    if (headerStyle !== "minimal") {
+      slide.addShape(pptx.ShapeType.rect, {
+        x: 0,
+        y: 0,
+        w: SLIDE_W,
+        h: headerStyle === "underline" ? 0.08 : 0.18,
+        fill: { color: pptxColor(accent) },
+        line: { color: pptxColor(accent) },
+      });
+    }
 
     slide.addText(outline?.title || "Untitled Presentation", {
       x: 0.8,
@@ -442,33 +461,49 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
                 ? "VISUAL"
                 : "KEY POINTS");
 
-        // Kicker pill (adds immediate visual variety)
-        const pillW = Math.min(3.0, box.w * 0.45);
-        const pillFill = pptxColor(tint(accent, 0.0));
-        slide.addShape(pptx.ShapeType.roundRect, {
-          x: box.x,
-          y: box.y,
-          w: pillW,
-          h: 0.32,
-          fill: { color: pillFill, transparency: 10 },
-          line: { color: pillFill, transparency: 100 },
-          // radius not supported in typings
+        if (headerStyle === "bar") {
+          // Kicker pill (adds immediate visual variety)
+          const pillW = Math.min(3.0, box.w * 0.45);
+          const pillFill = pptxColor(tint(accent, 0.0));
+          slide.addShape(pptx.ShapeType.roundRect, {
+            x: box.x,
+            y: box.y,
+            w: pillW,
+            h: 0.32,
+            fill: { color: pillFill, transparency: 10 },
+            line: { color: pillFill, transparency: 100 },
+            // radius not supported in typings
 
-        });
-        slide.addText(kicker, {
-          x: box.x + 0.12,
-          y: box.y + 0.05,
-          w: pillW - 0.24,
-          h: 0.26,
-          fontFace: "Segoe UI",
-          fontSize: 12,
-          bold: true,
-          color: "FFFFFF",
-        });
+          });
+          slide.addText(kicker, {
+            x: box.x + 0.12,
+            y: box.y + 0.05,
+            w: pillW - 0.24,
+            h: 0.26,
+            fontFace: "Segoe UI",
+            fontSize: 12,
+            bold: true,
+            color: "FFFFFF",
+          });
+        } else if (headerStyle === "underline") {
+          // Plain kicker (no pill)
+          slide.addText(kicker, {
+            x: box.x,
+            y: box.y + 0.02,
+            w: box.w,
+            h: 0.26,
+            fontFace: "Segoe UI",
+            fontSize: 12,
+            bold: true,
+            color: pptxColor(accent),
+          });
+        }
+        // minimal => no kicker ornament
 
+        const titleY = headerStyle === "bar" ? box.y + 0.36 : headerStyle === "underline" ? box.y + 0.30 : box.y;
         slide.addText(String(s?.title || ""), {
           x: box.x,
-          y: box.y + 0.36,
+          y: titleY,
           w: box.w,
           h: headerH - 0.36,
           fontFace: titleFontFace,
@@ -477,14 +512,16 @@ export async function buildPptxBuffer(outline: any): Promise<Buffer> {
           color: pptxColor(titleColor),
         });
 
-        slide.addShape(pptx.ShapeType.rect, {
-          x: box.x,
-          y: box.y + headerH - 0.06,
-          w: Math.min(5.5, box.w),
-          h: 0.05,
-          fill: { color: pptxColor(accent) },
-          line: { color: pptxColor(accent) },
-        });
+        if (headerStyle !== "minimal") {
+          slide.addShape(pptx.ShapeType.rect, {
+            x: box.x,
+            y: box.y + headerH - 0.06,
+            w: Math.min(5.5, box.w),
+            h: headerStyle === "underline" ? 0.04 : 0.05,
+            fill: { color: pptxColor(accent) },
+            line: { color: pptxColor(accent) },
+          });
+        }
         continue;
       }
 

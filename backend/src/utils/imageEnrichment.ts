@@ -58,9 +58,12 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
     perSlide: [],
   };
 
-  if ((!allowExternalImages && !allowGeneratedImages) || slides.length === 0) {
+  if (slides.length === 0) {
     return report;
   }
+
+  // Even if external/AI images are disabled, we can still deterministically generate icon tiles.
+  // This supports the decorate guarantee: no blank placeholders for reserved image slots.
 
   let idx = 0;
   const workers = new Array(concurrency).fill(0).map(async () => {

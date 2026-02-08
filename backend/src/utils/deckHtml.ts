@@ -24,6 +24,22 @@ export type Slide = {
 export type Outline = {
   title?: string;
   overallTheme?: string;
+  sections?: Array<{ title?: string; startIndex?: number; endIndex?: number }>;
+
+  // Deterministic plans (set by backend endpoints)
+  themePlan?: {
+    motif?: "ribbons" | "grid" | "corners" | "diagonal";
+    intensity?: "low" | "medium" | "high";
+    headerStyle?: "bar" | "underline" | "minimal";
+    panelStyle?: "glass" | "flat";
+    cornerRadius?: number;
+  };
+  decoratePlan?: {
+    layoutAggression?: "conservative" | "balanced" | "aggressive";
+    visualMode?: "images" | "icons" | "mixed";
+    sectionMode?: "none" | "labels" | "dividers";
+    guarantees?: { noPlaceholders?: boolean };
+  };
   // Optional deck-level description (for image/layout hints)
   describe?: string;
   // Optional deck look preset

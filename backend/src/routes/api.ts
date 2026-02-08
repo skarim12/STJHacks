@@ -424,6 +424,13 @@ Return STRICT JSON only:
     "panels": "glass|flat",
     "contrast": "auto|high"
   },
+  "themePlan": {
+    "motif": "ribbons|grid|corners|diagonal",
+    "intensity": "low|medium|high",
+    "headerStyle": "bar|underline|minimal",
+    "panelStyle": "glass|flat",
+    "cornerRadius": 0
+  },
   "colorScheme": {
     "primary": "#RRGGBB",
     "secondary": "#RRGGBB",
@@ -437,6 +444,7 @@ Rules:
 - Prefer practical, PPT-friendly themes.
 - Keep strong contrast for readability.
 - Use ONLY hex colors.
+- themePlan.cornerRadius is in px (0..28).
 - No extra keys, no markdown.`.trim();
 
     const user = `Deck title: ${String((outline as any)?.title || "").slice(0, 120)}
@@ -451,10 +459,34 @@ ${themePrompt}`;
 
     (outline as any).look = String((json as any)?.look || (outline as any).look || "default");
     (outline as any).themeStyle = (json as any)?.themeStyle || (outline as any).themeStyle;
+    (outline as any).themePlan = (json as any)?.themePlan || (outline as any).themePlan;
     (outline as any).colorScheme = (json as any)?.colorScheme || (outline as any).colorScheme;
     (outline as any).themePrompt = themePrompt;
 
+    // Keep outline theme coherent/safe; themePlan is optional but should remain within expected bounds.
     enforceThemeStyle(outline);
+    const tp = (outline as any).themePlan;
+    if (tp && typeof tp === "object") {
+      const motif = String((tp as any).motif || "").toLowerCase();
+      if (!["ribbons", "grid", "corners", "diagonal"].includes(motif)) (tp as any).motif = undefined;
+
+      const intensity = String((tp as any).intensity || "").toLowerCase();
+      if (!["low", "medium", "high"].includes(intensity)) (tp as any).intensity = "medium";
+
+      const headerStyle = String((tp as any).headerStyle || "").toLowerCase();
+      if (!["bar", "underline", "minimal"].includes(headerStyle)) (tp as any).headerStyle = "bar";
+
+      const panelStyle = String((tp as any).panelStyle || "").toLowerCase();
+      if (!["glass", "flat"].includes(panelStyle)) (tp as any).panelStyle = undefined;
+
+      const r = Number((tp as any).cornerRadius);
+      (tp as any).cornerRadius = Number.isFinite(r) ? Math.max(0, Math.min(28, Math.round(r))) : 14;
+
+      // Drop unknown keys (best-effort) to keep output stable.
+      for (const k of Object.keys(tp)) {
+        if (!["motif", "intensity", "headerStyle", "panelStyle", "cornerRadius"].includes(k)) delete (tp as any)[k];
+      }
+    }
 
     res.json({ outline });
   } catch (err: any) {
@@ -476,22 +508,124 @@ router.post("/decorate-outline", async (req, res) => {
     if (!decoratePrompt) return res.status(400).json({ error: "decoratePrompt required" });
 
     (outline as any).decoratePrompt = decoratePrompt;
+
+    // Parse decorate prompt into a deterministic plan we can reuse in renderers.
+    let decoratePlan: any = null;
+    try {
+      const system = `You are a presentation decorator.
+
+Return STRICT JSON only:
+{
+  "layoutAggression": "conservative|balanced|aggressive",
+  "visualMode": "images|icons|mixed",
+  "sectionMode": "none|labels|dividers",
+  "guarantees": {
+    "noPlaceholders": true
+  }
+}
+
+Rules:
+- "icons" means prefer deterministic icon tiles instead of photos.
+- "images" means prefer real images when allowed.
+- "mixed" means try images first then fall back to icon tiles.
+- If the prompt mentions sections/sectioning, use sectionMode "labels" or "dividers".
+- Always set guarantees.noPlaceholders=true.
+- No extra keys, no markdown.`.trim();
+
+      const user = `Decorate prompt:\n${decoratePrompt}`;
+      const cacheKey = `decoratePlan:${String((outline as any)?.title || "deck").slice(0, 60)}:${decoratePrompt.slice(0, 200)}`;
+      decoratePlan = await anthropicJsonRequest(cacheKey, system, user, 450);
+    } catch {
+      // ignore; we will use deterministic defaults below
+    }
+
+    const dp: any = decoratePlan && typeof decoratePlan === "object" ? decoratePlan : {};
+    const layoutAggression = String(dp?.layoutAggression || "balanced").toLowerCase();
+    const visualMode = String(dp?.visualMode || "mixed").toLowerCase();
+    const sectionMode = String(dp?.sectionMode || (/(\bsections?\b|\bsectioning\b)/i.test(decoratePrompt) ? "labels" : "none")).toLowerCase();
+
+    (outline as any).decoratePlan = {
+      layoutAggression: ["conservative", "balanced", "aggressive"].includes(layoutAggression) ? layoutAggression : "balanced",
+      visualMode: ["images", "icons", "mixed"].includes(visualMode) ? visualMode : "mixed",
+      sectionMode: ["none", "labels", "dividers"].includes(sectionMode) ? sectionMode : "none",
+      guarantees: { noPlaceholders: true },
+    };
+
     enforceThemeStyle(outline);
 
     // Layouts first
     await enrichOutlineWithLayouts(outline, { anthropicJsonRequest });
 
-    // Optional: deterministic section labels if requested
-    const wantsSections = /\bsections?\b/i.test(decoratePrompt) || /\bsectioning\b/i.test(decoratePrompt);
-    if (wantsSections) {
+    // Apply layout aggression (post-pass) deterministically.
+    {
       const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
-      const groupSize = 4;
-      for (let i = 0; i < slides.length; i++) {
-        const s = slides[i];
+      for (const s of slides) {
         if (!s) continue;
-        if (String(s.slideType || "").toLowerCase() === "title") continue;
-        const sectionIndex = Math.floor(i / groupSize) + 1;
-        (s as any).kicker = `SECTION ${sectionIndex}`;
+        const st = String(s.slideType || "").toLowerCase();
+        if (st === "title") continue;
+
+        const v = String(s?.layoutPlan?.variant || "");
+        if (!v) continue;
+
+        if ((outline as any).decoratePlan.layoutAggression === "conservative") {
+          // Reduce layout novelty: avoid multi-card + heavy image compositions.
+          if (v.startsWith("content.") && ["content.fourCardsGrid", "content.threeCards", "content.twoStackCards", "content.asymTwoCards", "content.leftStackRightCard"].includes(v)) {
+            (s as any).layoutPlan = { variant: "content.singleCard" };
+          }
+          if (v.startsWith("image.") && v !== "image.captionRight") {
+            (s as any).layoutPlan = { variant: "image.captionRight" };
+          }
+        }
+
+        if ((outline as any).decoratePlan.layoutAggression === "aggressive") {
+          // Prefer image-forward / editorial layouts when we likely have or will have visuals.
+          if (v === "content.singleCard") {
+            (s as any).layoutPlan = { variant: "content.splitRightHero" };
+          }
+          if (v === "content.leftAccentBar") {
+            (s as any).layoutPlan = { variant: "content.calloutRight" };
+          }
+        }
+      }
+    }
+
+    // Sectioning: use outline.sections when present; otherwise fall back to simple grouping.
+    {
+      const slides: any[] = Array.isArray((outline as any)?.slides) ? (outline as any).slides : [];
+      const sections: any[] = Array.isArray((outline as any)?.sections) ? (outline as any).sections : [];
+
+      const applyLabel = (slideIndex: number, label: string) => {
+        const s = slides[slideIndex];
+        if (!s) return;
+        if (String(s.slideType || "").toLowerCase() === "title") return;
+        (s as any).kicker = String(label || "").slice(0, 36);
+      };
+
+      if ((outline as any).decoratePlan.sectionMode !== "none") {
+        if (sections.length) {
+          for (const sec of sections) {
+            const title = String(sec?.title || "").trim();
+            const start = Number(sec?.startIndex);
+            const end = Number(sec?.endIndex);
+            if (!title || !Number.isFinite(start) || !Number.isFinite(end)) continue;
+
+            // Only label the first non-title slide in the section range.
+            for (let i = Math.max(0, start); i <= Math.min(slides.length - 1, end); i++) {
+              if (String(slides[i]?.slideType || "").toLowerCase() === "title") continue;
+              applyLabel(i, title.toUpperCase());
+              break;
+            }
+          }
+        } else {
+          const groupSize = 4;
+          for (let i = 0; i < slides.length; i++) {
+            const s = slides[i];
+            if (!s) continue;
+            if (String(s.slideType || "").toLowerCase() === "title") continue;
+            const sectionIndex = Math.floor(i / groupSize) + 1;
+            applyLabel(i, `SECTION ${sectionIndex}`);
+          }
+        }
       }
     }
 
@@ -509,13 +643,18 @@ router.post("/decorate-outline", async (req, res) => {
 
     const maxDeckImages = Math.max(0, Math.min(indicesNeedingImage.length, 40));
 
+    const visualModePlan = String((outline as any)?.decoratePlan?.visualMode || "mixed");
+    const effectiveAllowExternalImages = visualModePlan === "icons" ? false : allowExternalImages;
+    const effectiveAllowGeneratedImages = visualModePlan === "icons" ? false : allowGeneratedImages;
+    const effectiveImageStyle = visualModePlan === "icons" ? "illustration" : imageStyle;
+
     const enrichment = await enrichOutlineWithImages(outline, {
-      allowExternalImages,
-      allowGeneratedImages,
-      imageStyle,
+      allowExternalImages: effectiveAllowExternalImages,
+      allowGeneratedImages: effectiveAllowGeneratedImages,
+      imageStyle: effectiveImageStyle,
       maxDeckImages,
       onlySlideIndices: indicesNeedingImage,
-      concurrency: allowExternalImages ? 1 : 2,
+      concurrency: effectiveAllowExternalImages ? 1 : 2,
     });
 
     // Style pass (shapes/typography) after layouts+images
@@ -558,13 +697,18 @@ router.post("/decorate-slide", async (req, res) => {
     const variant = variantName ? getVariantByName(variantName) : null;
     const hasImageBox = !!variant?.boxes?.some((b) => b.kind === "imageCard" || b.kind === "fullBleedImage");
 
+    const visualModePlan = String((outline as any)?.decoratePlan?.visualMode || "mixed");
+    const effectiveAllowExternalImages = visualModePlan === "icons" ? false : allowExternalImages;
+    const effectiveAllowGeneratedImages = visualModePlan === "icons" ? false : allowGeneratedImages;
+    const effectiveImageStyle = visualModePlan === "icons" ? "illustration" : imageStyle;
+
     const enrichment = await enrichOutlineWithImages(outline, {
-      allowExternalImages,
-      allowGeneratedImages,
-      imageStyle,
+      allowExternalImages: effectiveAllowExternalImages,
+      allowGeneratedImages: effectiveAllowGeneratedImages,
+      imageStyle: effectiveImageStyle,
       maxDeckImages: hasImageBox ? 1 : 0,
       onlySlideIndices: hasImageBox ? [slideIndex] : [],
-      concurrency: allowExternalImages ? 1 : 2,
+      concurrency: effectiveAllowExternalImages ? 1 : 2,
     });
 
     await enrichOutlineWithStyles(outline, { anthropicJsonRequest });
