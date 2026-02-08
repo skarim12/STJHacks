@@ -111,7 +111,10 @@ async function wikimediaSearchFirstImage(query: string, thumbWidth: number): Pro
   return result;
 }
 
-async function downloadAndCompressAsDataUri(url: string, maxBytes: number): Promise<{ dataUri: string; bytes: number; mime: string } | null> {
+async function downloadAndCompressAsDataUri(
+  url: string,
+  maxBytes: number
+): Promise<{ dataUri: string; bytes: number; mime: string } | null> {
   const cacheKey = `wm:dl2:${maxBytes}:${url}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached as any;
@@ -123,7 +126,8 @@ async function downloadAndCompressAsDataUri(url: string, maxBytes: number): Prom
     maxContentLength: Math.max(maxBytes * 4, 2_000_000),
     maxBodyLength: Math.max(maxBytes * 4, 2_000_000),
     headers: {
-      "User-Agent": "STJHacks-PPT-AI/1.0 (deck export)",
+      // User-Agent required by Wikimedia policy.
+      "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
     },
   });
 
@@ -170,6 +174,108 @@ async function downloadAndCompressAsDataUri(url: string, maxBytes: number): Prom
   const out = { dataUri, bytes: outBuf.byteLength, mime: "image/jpeg" };
   cache.set(cacheKey, out);
   return out;
+}
+
+async function wikipediaSearchTopPage(query: string): Promise<{ pageId: number; title: string; pageUrl: string } | null> {
+  const cacheKey = `wp:search:${query}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached as any;
+
+  const resp = await axios.get("https://en.wikipedia.org/w/api.php", {
+    params: {
+      action: "query",
+      format: "json",
+      origin: "*",
+      list: "search",
+      srsearch: query,
+      srlimit: 1,
+    },
+    timeout: 6000,
+    headers: {
+      "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
+      Accept: "application/json",
+    },
+  });
+
+  const results = (resp.data as any)?.query?.search;
+  const first = Array.isArray(results) && results.length ? results[0] : null;
+  const pageId = Number(first?.pageid);
+  const title = String(first?.title || "");
+  if (!Number.isFinite(pageId) || !title) {
+    cache.set(cacheKey, null);
+    return null;
+  }
+
+  const pageUrl = `https://en.wikipedia.org/?curid=${pageId}`;
+  const out = { pageId, title, pageUrl };
+  cache.set(cacheKey, out);
+  return out;
+}
+
+async function wikipediaGetLeadImage(opts: {
+  pageId: number;
+  thumbWidth: number;
+}): Promise<{ thumbUrl?: string; pageUrl?: string } | null> {
+  const cacheKey = `wp:lead:${opts.thumbWidth}:${opts.pageId}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached as any;
+
+  const resp = await axios.get("https://en.wikipedia.org/w/api.php", {
+    params: {
+      action: "query",
+      format: "json",
+      origin: "*",
+      pageids: opts.pageId,
+      prop: "pageimages|info",
+      piprop: "thumbnail",
+      pithumbsize: opts.thumbWidth,
+      inprop: "url",
+    },
+    timeout: 6000,
+    headers: {
+      "User-Agent": "STJHacks-PPT-AI/1.0 (image enrichment; contact: local-dev)",
+      Accept: "application/json",
+    },
+  });
+
+  const pages = (resp.data as any)?.query?.pages;
+  const p = pages ? pages[String(opts.pageId)] : null;
+  const thumbUrl = String(p?.thumbnail?.source || "");
+  const pageUrl = String(p?.fullurl || "");
+
+  const out = { thumbUrl: thumbUrl || undefined, pageUrl: pageUrl || undefined };
+  cache.set(cacheKey, out);
+  return out;
+}
+
+export async function fetchSlideImageFromWikipedia(opts: {
+  query: string;
+  maxBytes?: number;
+  thumbWidth?: number;
+}): Promise<SlideImage | null> {
+  const maxBytes = opts.maxBytes ?? 900_000;
+  const thumbWidth = opts.thumbWidth ?? 1600;
+
+  const q = safeQueryPart(opts.query);
+  if (!q) return null;
+
+  const page = await wikipediaSearchTopPage(q);
+  if (!page) return null;
+
+  const lead = await wikipediaGetLeadImage({ pageId: page.pageId, thumbWidth });
+  const chosenUrl = lead?.thumbUrl;
+  if (!chosenUrl) return null;
+  if (!isWhitelisted(chosenUrl)) return null;
+
+  const dl = await downloadAndCompressAsDataUri(chosenUrl, maxBytes);
+  if (!dl?.dataUri) return null;
+
+  return {
+    dataUri: dl.dataUri,
+    sourceUrl: chosenUrl,
+    sourcePage: lead?.pageUrl || page.pageUrl,
+    credit: "Wikipedia",
+  };
 }
 
 export async function fetchSlideImageFromWikimedia(opts: {

@@ -1,4 +1,4 @@
-import { buildDefaultImageQuery, fetchSlideImageFromWikimedia } from "./externalImages";
+import { buildDefaultImageQuery, fetchSlideImageFromWikimedia, fetchSlideImageFromWikipedia } from "./externalImages";
 import { generateSlideImageOpenAI } from "./imageGeneration";
 
 export type ImageEnrichmentOptions = {
@@ -88,7 +88,7 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
 
       let lastError: string | undefined;
 
-      // 1) Wikimedia
+      // 1) Wikimedia Commons file search
       if (allowExternalImages) {
         try {
           const img = await fetchSlideImageFromWikimedia({ query });
@@ -104,6 +104,23 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
           lastError = lastError || "wikimedia: no result";
         } catch (e: any) {
           lastError = `wikimedia: ${String(e?.message || e)}`;
+        }
+
+        // 1b) Wikipedia page → lead image (much higher recall for abstract concepts)
+        try {
+          const img2 = await fetchSlideImageFromWikipedia({ query });
+          if (img2?.dataUri) {
+            s.imageDataUri = img2.dataUri;
+            s.imageCredit = img2.credit;
+            s.imageSourcePage = img2.sourcePage;
+            used++;
+            report.imagesAdded++;
+            report.perSlide.push({ index: i, slideType, query, source: "wikimedia" });
+            continue;
+          }
+          lastError = lastError || "wikipedia: no result";
+        } catch (e: any) {
+          lastError = lastError || `wikipedia: ${String(e?.message || e)}`;
         }
       }
 
