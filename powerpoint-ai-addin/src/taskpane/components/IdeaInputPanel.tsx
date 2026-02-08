@@ -12,7 +12,8 @@ import {
   Title2,
   Body1,
   Badge,
-  Caption1
+  Caption1,
+  Input
 } from '@fluentui/react-components';
 import { useStore } from '../store/useStore';
 
@@ -124,6 +125,7 @@ export function IdeaInputPanel() {
     searchPhotosForSlide,
     selectPhotoForSlide,
     photoResultsBySlideId,
+    aiEditSlide,
     insertCurrentDeck
   } = useStore();
 
@@ -229,6 +231,21 @@ export function IdeaInputPanel() {
                 <Caption1 style={{ color: tokens.colorNeutralForeground2 }}>
                   {s.imagePlaceholders?.[0]?.description ?? 'No visual placeholder'}
                 </Caption1>
+
+                {/* AI Edit */}
+                <Field label="AI edit this slide" hint="Examples: 'make it shorter', 'turn into a quote', 'rewrite for executives'">
+                  <Input
+                    placeholder="Tell the agent what to change..."
+                    disabled={isGenerating}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = (e.target as HTMLInputElement).value;
+                        (e.target as HTMLInputElement).value = '';
+                        aiEditSlide(s.id, val);
+                      }
+                    }}
+                  />
+                </Field>
 
                 <div className={styles.actionsRow}>
                   <div className={styles.actionsLeft}>

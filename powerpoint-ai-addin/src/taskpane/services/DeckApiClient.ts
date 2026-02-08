@@ -1,4 +1,4 @@
-import type { DeckGenerationResponse } from '../types';
+import type { DeckGenerationResponse, Slide } from '../types';
 
 export class DeckApiClient {
   constructor(private cfg: { baseUrl: string }) {}
@@ -36,6 +36,15 @@ export class DeckApiClient {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sel)
+    });
+    return await r.json();
+  }
+
+  async aiEditSlide(deckId: string, slideId: string, opts: { instruction: string }): Promise<any> {
+    const r = await fetch(`${this.cfg.baseUrl}/api/deck/${deckId}/slides/${slideId}/ai-edit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instruction: opts.instruction })
     });
     return await r.json();
   }

@@ -42,6 +42,8 @@ type Store = {
   searchPhotosForSlide: (slideId: string, query: string) => Promise<void>;
   selectPhotoForSlide: (slideId: string, r: PhotoSearchResult) => Promise<void>;
 
+  aiEditSlide: (slideId: string, instruction: string) => Promise<void>;
+
   insertCurrentDeck: () => Promise<void>;
 };
 
@@ -128,6 +130,33 @@ export const useStore = create<Store>((set, get) => ({
           })
         };
         return { ...s, deck, status: 'done' };
+      });
+    } catch (e: any) {
+      set({ status: 'error', error: e?.message ?? String(e) });
+    }
+  },
+
+  aiEditSlide: async (slideId: string, instruction: string) => {
+    const deck = get().deck;
+    if (!deck) return;
+    const trimmed = instruction.trim();
+    if (!trimmed) return;
+
+    set({ status: 'generating', error: null });
+    try {
+      const resp = await get().deckApi.aiEditSlide(deck.id, slideId, { instruction: trimmed });
+      if (!resp?.success) throw new Error(resp?.error ?? 'Slide edit failed');
+
+      const patch = resp.patch as Partial<Slide>;
+
+      set((s) => {
+        if (!s.deck) return s as any;
+        const updated = {
+          ...s.deck,
+          slides: s.deck.slides.map((sl) => (sl.id === slideId ? ({ ...sl, ...patch, id: sl.id, order: sl.order } as any) : sl)),
+          metadata: { ...s.deck.metadata, updatedAt: new Date().toISOString() }
+        };
+        return { ...s, deck: updated, status: 'done' };
       });
     } catch (e: any) {
       set({ status: 'error', error: e?.message ?? String(e) });
