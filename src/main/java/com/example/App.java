@@ -1,4 +1,4 @@
-
+package com.example;
 import io.javalin.Javalin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
