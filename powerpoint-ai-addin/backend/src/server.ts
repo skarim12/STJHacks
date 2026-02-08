@@ -18,16 +18,25 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.use('/api', apiRouter);
 
 const port = Number(process.env.PORT ?? 3000);
-const useHttps = String(process.env.USE_HTTPS ?? '').toLowerCase() === 'true';
 
 // Default Office dev-certs location on Windows/macOS.
 const defaultCertDir = path.join(process.env.USERPROFILE || process.env.HOME || '', '.office-addin-dev-certs');
 const certPath = process.env.SSL_CERT_PATH || path.join(defaultCertDir, 'localhost.crt');
 const keyPath = process.env.SSL_KEY_PATH || path.join(defaultCertDir, 'localhost.key');
 
+const certExists = fs.existsSync(certPath);
+const keyExists = fs.existsSync(keyPath);
+
+// Compatibility:
+// - Office add-ins / dev server often run over https.
+// - The UI builds backend baseUrl from window.location.protocol.
+// To avoid "Failed to fetch" from https→http mismatch, automatically enable https
+// whenever Office dev-certs are present, unless explicitly disabled.
+const envUseHttps = String(process.env.USE_HTTPS ?? '').toLowerCase() === 'true';
+const autoHttpsDisabled = String(process.env.AUTO_HTTPS ?? '').toLowerCase() === 'false';
+const useHttps = envUseHttps || (!autoHttpsDisabled && certExists && keyExists);
+
 if (useHttps) {
-  const certExists = fs.existsSync(certPath);
-  const keyExists = fs.existsSync(keyPath);
   if (certExists && keyExists) {
     const cert = fs.readFileSync(certPath);
     const key = fs.readFileSync(keyPath);
@@ -35,9 +44,7 @@ if (useHttps) {
       console.log(`backend listening on https://localhost:${port}`);
     });
   } else {
-    console.warn(
-      `USE_HTTPS=true but cert/key not found. cert=${certPath} key=${keyPath}. Falling back to http.`
-    );
+    console.warn(`HTTPS requested but cert/key not found. cert=${certPath} key=${keyPath}. Falling back to http.`);
     http.createServer(app).listen(port, () => {
       console.log(`backend listening on http://localhost:${port}`);
     });
