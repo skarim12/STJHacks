@@ -14,6 +14,9 @@ export type ImageEnrichmentOptions = {
 
 export type EnrichmentReport = {
   imagesAdded: number;
+  attempted: number;
+  skipped: { title: number; alreadyHasImage: number; notSelected: number; noQuery: number };
+  opts: { allowExternalImages: boolean; allowGeneratedImages: boolean; imageStyle: string; maxDeckImages: number };
   perSlide: Array<{
     index: number;
     slideType: string;
@@ -33,7 +36,13 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
   const slides: any[] = Array.isArray(outline?.slides) ? outline.slides : [];
 
   let used = 0;
-  const report: EnrichmentReport = { imagesAdded: 0, perSlide: [] };
+  const report: EnrichmentReport = {
+    imagesAdded: 0,
+    attempted: 0,
+    skipped: { title: 0, alreadyHasImage: 0, notSelected: 0, noQuery: 0 },
+    opts: { allowExternalImages, allowGeneratedImages, imageStyle, maxDeckImages },
+    perSlide: [],
+  };
 
   if ((!allowExternalImages && !allowGeneratedImages) || slides.length === 0) {
     return report;
@@ -46,12 +55,23 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
       const s = slides[i];
       if (!s) continue;
       const slideType = String(s.slideType || "").toLowerCase();
-      if (slideType === "title") continue;
-      if (s.imageDataUri) continue;
+      if (slideType === "title") {
+        report.skipped.title++;
+        continue;
+      }
+      if (s.imageDataUri) {
+        report.skipped.alreadyHasImage++;
+        continue;
+      }
 
       // Strategy: always try for explicit image slides; else every other slide.
       const wantsImage = slideType === "image" || slideType === "imageplaceholder" || i % 2 === 1;
-      if (!wantsImage) continue;
+      if (!wantsImage) {
+        report.skipped.notSelected++;
+        continue;
+      }
+
+      report.attempted++;
 
       const query = buildDefaultImageQuery({
         deckTitle: outline?.title,
@@ -60,7 +80,11 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
         slideDescribe: s?.describe,
         bullets: Array.isArray(s?.content) ? s.content : [],
       });
-      if (!query) continue;
+      if (!query) {
+        report.skipped.noQuery++;
+        report.perSlide.push({ index: i, slideType, query: "", source: "none", error: "no query" });
+        continue;
+      }
 
       let lastError: string | undefined;
 
@@ -77,6 +101,7 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             report.perSlide.push({ index: i, slideType, query, source: "wikimedia" });
             continue;
           }
+          lastError = lastError || "wikimedia: no result";
         } catch (e: any) {
           lastError = `wikimedia: ${String(e?.message || e)}`;
         }
@@ -95,6 +120,7 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             report.perSlide.push({ index: i, slideType, query, source: "openai" });
             continue;
           }
+          lastError = lastError || "openai: no result";
         } catch (e: any) {
           lastError = lastError || `openai: ${String(e?.message || e)}`;
         }
