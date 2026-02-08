@@ -342,11 +342,14 @@ async function finalizeOutlineForRender(reqBody: any) {
 
   enforceThemeStyle(outline);
 
+  const slidesCount = Array.isArray((outline as any)?.slides) ? (outline as any).slides.length : 0;
+  const maxDeckImages = Math.max(0, Math.min(slidesCount, 20));
+
   const enrichment = await enrichOutlineWithImages(outline, {
     allowExternalImages,
     allowGeneratedImages,
     imageStyle,
-    maxDeckImages: 10,
+    maxDeckImages,
     // Wikimedia APIs will rate-limit; keep this conservative.
     concurrency: allowExternalImages ? 1 : 2,
   });
@@ -404,11 +407,14 @@ router.post("/export-pdf", async (req, res) => {
 
     enforceThemeStyle(outline);
 
+    const slidesCount = Array.isArray((outline as any)?.slides) ? (outline as any).slides.length : 0;
+    const maxDeckImages = Math.max(0, Math.min(slidesCount, 20));
+
     const enrichment = await enrichOutlineWithImages(outline, {
       allowExternalImages,
       allowGeneratedImages,
       imageStyle,
-      maxDeckImages: 10,
+      maxDeckImages,
       // Wikimedia APIs will rate-limit; keep this conservative.
       concurrency: allowExternalImages ? 1 : 2,
     });
@@ -458,12 +464,15 @@ router.post("/export-pptx", async (req, res) => {
 
     enforceThemeStyle(outline);
 
+    const slidesCount = Array.isArray((outline as any)?.slides) ? (outline as any).slides.length : 0;
+    const maxDeckImages = Math.max(0, Math.min(slidesCount, 20));
+
     // Enrich for PPTX too so images/layout plans exist.
     await enrichOutlineWithImages(outline, {
       allowExternalImages,
       allowGeneratedImages,
       imageStyle,
-      maxDeckImages: 10,
+      maxDeckImages,
       // Wikimedia APIs will rate-limit; keep this conservative.
       concurrency: allowExternalImages ? 1 : 2,
     });
@@ -644,11 +653,14 @@ router.post("/slide-html", async (req, res) => {
       return res.status(400).json({ error: `slideIndex out of range (0..${Math.max(0, slides.length - 1)})` });
     }
 
+    const slidesCount = Array.isArray((outline as any)?.slides) ? (outline as any).slides.length : 0;
+    const maxDeckImages = Math.max(0, Math.min(slidesCount, 20));
+
     await enrichOutlineWithImages(outline, {
       allowExternalImages,
       allowGeneratedImages,
       imageStyle,
-      maxDeckImages: 10,
+      maxDeckImages,
       // Wikimedia APIs will rate-limit; keep this conservative.
       concurrency: allowExternalImages ? 1 : 2,
     });

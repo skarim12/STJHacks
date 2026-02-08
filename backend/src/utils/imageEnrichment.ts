@@ -64,13 +64,8 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
         continue;
       }
 
-      // Strategy: always try for explicit image slides; else every other slide.
-      const wantsImage = slideType === "image" || slideType === "imageplaceholder" || i % 2 === 1;
-      if (!wantsImage) {
-        report.skipped.notSelected++;
-        continue;
-      }
-
+      // Strategy (user request): try to put an image on every slide that isn't the title.
+      // Keep maxDeckImages as the controlling cap.
       report.attempted++;
 
       const query = buildDefaultImageQuery({
