@@ -21,7 +21,7 @@ export type EnrichmentReport = {
     index: number;
     slideType: string;
     query: string;
-    source: "wikimedia" | "openai" | "none";
+    source: "wikimedia" | "wikipedia" | "openai" | "none";
     error?: string;
   }>;
 };
@@ -115,7 +115,7 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
             s.imageSourcePage = img2.sourcePage;
             used++;
             report.imagesAdded++;
-            report.perSlide.push({ index: i, slideType, query, source: "wikimedia" });
+            report.perSlide.push({ index: i, slideType, query, source: "wikipedia" });
             continue;
           }
           lastError = lastError || "wikipedia: no result";
@@ -143,7 +143,15 @@ export async function enrichOutlineWithImages(outline: any, opts: ImageEnrichmen
         }
       }
 
-      report.perSlide.push({ index: i, slideType, query, source: "none", ...(lastError ? { error: lastError } : {}) });
+      const finalError =
+        lastError ||
+        (!allowExternalImages && !allowGeneratedImages
+          ? "images disabled"
+          : allowExternalImages && !allowGeneratedImages
+            ? "no image found (enable AI-generated fallback)"
+            : "no image found");
+
+      report.perSlide.push({ index: i, slideType, query, source: "none", error: finalError });
     }
   });
 

@@ -114,7 +114,7 @@ export const DeckPreviewPanel: React.FC = () => {
           inlineLabel
         />
         <Toggle
-          label="AI-generated images (OpenAI)"
+          label="AI-generated fallback images (OpenAI)"
           checked={generatedImagesEnabled}
           onChange={(_, v) => setGeneratedImagesEnabled(!!v)}
           inlineLabel

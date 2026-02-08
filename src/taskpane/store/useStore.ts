@@ -112,7 +112,13 @@ export const useStore = create<AppState>((set, get) => ({
   setError: (error) => set({ error }),
   setTheme: (theme) => set({ selectedTheme: theme }),
   setSelectedTemplate: (tpl) => set({ selectedTemplate: tpl }),
-  setExternalImagesEnabled: (enabled) => set({ externalImagesEnabled: enabled }),
+  setExternalImagesEnabled: (enabled) =>
+    set((s) => ({
+      externalImagesEnabled: enabled,
+      // If the user enables external images, default to generating a fallback image
+      // when search misses (explicit user request; keeps decks visually complete).
+      generatedImagesEnabled: enabled ? true : s.generatedImagesEnabled,
+    })),
   setGeneratedImagesEnabled: (enabled) => set({ generatedImagesEnabled: enabled }),
   setLastEnrichment: (enrichment) => set({ lastEnrichment: enrichment }),
   setDeckDescribe: (describe) => {
