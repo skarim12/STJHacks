@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { AIService } from '../services/AIService';
-import { PowerPointService } from '../services/PowerPointService';
+import { getPowerPointService } from '../services/PowerPointService';
 
 type Status = 'idle' | 'generating' | 'error' | 'done';
 
@@ -8,7 +8,7 @@ type Store = {
   status: Status;
   error: string | null;
   ai: AIService;
-  ppt: PowerPointService;
+  ppt: ReturnType<typeof getPowerPointService>;
   generateFromIdea: (idea: string) => Promise<void>;
 };
 
@@ -16,7 +16,7 @@ export const useStore = create<Store>((set, get) => ({
   status: 'idle',
   error: null,
   ai: new AIService({ baseUrl: 'http://localhost:3000' }),
-  ppt: new PowerPointService(),
+  ppt: getPowerPointService(),
   generateFromIdea: async (idea: string) => {
     set({ status: 'generating', error: null });
     try {

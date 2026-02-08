@@ -1,3 +1,4 @@
+// Legacy types used by the current outline-generation flow
 export type SlideType = 'title' | 'content' | 'comparison' | 'image' | 'quote';
 
 export interface ColorScheme {
@@ -22,3 +23,6 @@ export interface PresentationOutline {
   colorScheme: ColorScheme;
   overallTheme?: string;
 }
+
+// New (text-first) deck schema used by the prototype + eventual add-in
+export * from './deck';
